@@ -22,7 +22,7 @@ Team execution rule:
 
 - [x] Scaffold Next.js app, Tailwind, lint/build scripts, and base layout.
 - [x] Add domain types, local storage directories, job state, and API skeletons.
-- [ ] Add Python Worker scaffold with CLI contract and JSON output.
+- [x] Add Python Worker scaffold with CLI contract and JSON output.
 - [ ] Implement PDF extraction and page rendering.
 - [ ] Implement DOCX native extraction plus LibreOffice PDF/page rendering.
 - [ ] Implement PPTX extraction plus LibreOffice PDF/slide rendering.
