@@ -4,6 +4,10 @@ import {
   reviewSectionSchema,
 } from "@/lib/llm/review-document-schema";
 import {
+  normalizeReviewDocumentOutput,
+  normalizeReviewSectionOutput,
+} from "@/lib/llm/review-document-normalizer";
+import {
   DOCUTOR_SYSTEM_PROMPT,
   buildDocumentConversionPrompt,
   buildSectionRegenerationPrompt,
@@ -205,7 +209,9 @@ export function createCodexLocalProvider(): ConversionProvider {
       const responseText = await runCodexTurn(
         buildCodexInputs(input, buildDocumentConversionPrompt(input)),
       );
-      return reviewDocumentSchema.parse(JSON.parse(extractJson(responseText)));
+      return normalizeReviewDocumentOutput(
+        reviewDocumentSchema.parse(JSON.parse(extractJson(responseText))),
+      );
     },
     async regenerateSection(
       input: NormalizedDocument,
@@ -214,7 +220,9 @@ export function createCodexLocalProvider(): ConversionProvider {
       const responseText = await runCodexTurn(
         buildCodexInputs(input, buildSectionRegenerationPrompt(input, section)),
       );
-      return reviewSectionSchema.parse(JSON.parse(extractJson(responseText)));
+      return normalizeReviewSectionOutput(
+        reviewSectionSchema.parse(JSON.parse(extractJson(responseText))),
+      );
     },
   };
 }

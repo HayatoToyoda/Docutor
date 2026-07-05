@@ -1,5 +1,9 @@
 # Docutor MVP
 
+<p align="center">
+  <img src="docs/assets/docutor-image.png" alt="Docutor - From messy docs to clear knowledge" width="520">
+</p>
+
 Docutor converts messy enterprise documents into clean, agent-readable Markdown.
 
 The target users are traditional Japanese companies with important specifications,
@@ -161,4 +165,3 @@ The MVP is complete when a user can:
 7. Accept the section.
 8. Click Complete.
 9. Download the final Markdown.
-
