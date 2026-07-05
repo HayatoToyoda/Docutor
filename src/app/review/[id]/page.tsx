@@ -321,6 +321,27 @@ export default function ReviewPage() {
     setMessage("Section regenerated.");
   }
 
+  async function downloadExport(kind: "markdown" | "zip") {
+    const response = await fetch(
+      `/api/documents/${params.id}/export/${kind}`,
+      { method: "POST" },
+    );
+
+    if (!response.ok) {
+      setMessage(`${kind.toUpperCase()} export failed.`);
+      return;
+    }
+
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = kind === "markdown" ? `${params.id}.md` : `${params.id}.zip`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+    setMessage(`${kind.toUpperCase()} export downloaded.`);
+  }
+
   const acceptedCount = sections.filter(
     (section) => section.reviewStatus === "accepted",
   ).length;
@@ -337,8 +358,26 @@ export default function ReviewPage() {
               {reviewDocument?.title ?? "Review document"}
             </h1>
           </div>
-          <div className="text-sm text-slate-600">
-            {acceptedCount} / {sections.length} accepted
+          <div className="flex items-center gap-2">
+            <div className="text-sm text-slate-600">
+              {acceptedCount} / {sections.length} accepted
+            </div>
+            <button
+              className="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={acceptedCount === 0}
+              onClick={() => downloadExport("markdown")}
+              type="button"
+            >
+              Markdown
+            </button>
+            <button
+              className="rounded bg-slate-900 px-3 py-1.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-slate-300"
+              disabled={acceptedCount === 0}
+              onClick={() => downloadExport("zip")}
+              type="button"
+            >
+              ZIP
+            </button>
           </div>
         </div>
       </header>
