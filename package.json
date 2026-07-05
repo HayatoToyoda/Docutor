@@ -6,13 +6,17 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "test": "vitest run"
   },
   "dependencies": {
+    "jszip": "^3.10.1",
+    "mermaid": "^11.16.0",
     "next": "latest",
     "openai": "^6.45.0",
     "react": "latest",
     "react-dom": "latest",
+    "react-markdown": "^10.1.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
@@ -23,7 +27,8 @@
     "eslint": "^9.39.1",
     "eslint-config-next": "latest",
     "tailwindcss": "latest",
-    "typescript": "latest"
+    "typescript": "latest",
+    "vitest": "^4.1.9"
   },
   "packageManager": "pnpm@11.7.0"
 }

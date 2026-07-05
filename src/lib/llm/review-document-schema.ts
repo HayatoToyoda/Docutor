@@ -68,6 +68,11 @@ const diagramSectionSchema = reviewSectionBaseSchema.extend({
   drawioXml: z.string().optional(),
 });
 
+export const reviewSectionSchema = z.union([
+  nonDiagramSectionSchema,
+  diagramSectionSchema,
+]);
+
 export const reviewDocumentSchema = z.object({
   id: z.string(),
   title: z.string(),
@@ -75,7 +80,7 @@ export const reviewDocumentSchema = z.object({
   sourceFileType: z.enum(["pdf", "docx", "pptx"]),
   createdAt: z.string(),
   updatedAt: z.string(),
-  sections: z.array(z.union([nonDiagramSectionSchema, diagramSectionSchema])),
+  sections: z.array(reviewSectionSchema),
   assets: z.array(
     z.object({
       id: z.string(),
@@ -89,3 +94,4 @@ export const reviewDocumentSchema = z.object({
 });
 
 export type ReviewDocumentOutput = z.infer<typeof reviewDocumentSchema>;
+export type ReviewSectionOutput = z.infer<typeof reviewSectionSchema>;

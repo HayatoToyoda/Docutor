@@ -28,14 +28,14 @@ Team execution rule:
 - [x] Implement PPTX extraction plus LibreOffice PDF/slide rendering.
 - [x] Add OpenAI provider, structured output schema, and conversion prompts.
 - [x] Wire upload-to-real-conversion flow.
-- [ ] Build review screen with section list, Markdown editor/preview, accept/reject.
-- [ ] Add Mermaid editor and preview.
-- [ ] Add `DiagramIR` to Mermaid/draw.io generation.
-- [ ] Add diagrams.net embedded editor and XML persistence.
-- [ ] Add regenerate section/diagram flow.
-- [ ] Add Markdown and ZIP exports.
-- [ ] Add Codex App Server local adapter behind an env flag.
-- [ ] Add fixtures, tests, browser smoke checks, and final polish.
+- [x] Build review screen with section list, Markdown editor/preview, accept/reject.
+- [x] Add Mermaid editor and preview.
+- [x] Add `DiagramIR` to Mermaid/draw.io generation.
+- [x] Add diagrams.net embedded editor and XML persistence.
+- [x] Add regenerate section/diagram flow.
+- [x] Add Markdown and ZIP exports.
+- [x] Add Codex App Server local adapter behind an env flag.
+- [x] Add fixtures, tests, browser smoke checks, and final polish.
 
 ## Key Implementation Changes
 

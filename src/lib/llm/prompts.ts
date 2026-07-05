@@ -1,4 +1,5 @@
 import type { NormalizedDocument } from "@/lib/types";
+import type { ReviewSection } from "@/lib/types";
 
 export const DOCUTOR_SYSTEM_PROMPT = `
 You are Docutor, a document conversion engine for Japanese enterprise documents.
@@ -54,5 +55,24 @@ ${JSON.stringify(
   null,
   2,
 )}
+`.trim();
+}
+
+export function buildSectionRegenerationPrompt(
+  document: NormalizedDocument,
+  section: ReviewSection,
+) {
+  return `
+Regenerate exactly one review section from the normalized document.
+
+Keep this section id: ${section.id}
+Keep this section type: ${section.type}
+Use reviewStatus: "pending"
+
+Current section JSON:
+${JSON.stringify(section, null, 2)}
+
+Normalized document context:
+${buildDocumentConversionPrompt(document)}
 `.trim();
 }
