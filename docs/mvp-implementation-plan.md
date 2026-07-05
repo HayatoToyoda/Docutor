@@ -20,7 +20,7 @@ Team execution rule:
 
 ## Implementation Checklist
 
-- [ ] Scaffold Next.js app, Tailwind, lint/build scripts, and base layout.
+- [x] Scaffold Next.js app, Tailwind, lint/build scripts, and base layout.
 - [ ] Add domain types, local storage directories, job state, and API skeletons.
 - [ ] Add Python Worker scaffold with CLI contract and JSON output.
 - [ ] Implement PDF extraction and page rendering.
