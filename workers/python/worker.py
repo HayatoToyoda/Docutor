@@ -15,13 +15,19 @@ import re
 import shutil
 import subprocess
 import sys
+import zipfile
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal, Optional
 from uuid import uuid4
+from xml.etree import ElementTree
 
 SourceFileType = Literal["pdf", "docx", "pptx"]
+
+WORD_NS = {
+    "w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main",
+}
 
 try:
     import pdfplumber  # type: ignore
@@ -180,6 +186,209 @@ def render_pdf_pages(input_path: Path, assets_dir: Path, page_count: int) -> tup
     return rendered_paths, warnings
 
 
+def convert_office_to_pdf(input_path: Path, output_dir: Path) -> tuple[Optional[Path], list[str]]:
+    warnings: list[str] = []
+
+    if not command_exists("soffice"):
+        return None, ["Office rendering requires the soffice command."]
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        run_command(
+            [
+                "soffice",
+                "--headless",
+                "--convert-to",
+                "pdf",
+                "--outdir",
+                str(output_dir),
+                str(input_path),
+            ]
+        )
+    except subprocess.CalledProcessError as exc:
+        message = exc.stderr.strip() or exc.stdout.strip() or str(exc)
+        return None, [f"Office to PDF conversion failed: {message}"]
+
+    pdf_path = output_dir / f"{input_path.stem}.pdf"
+    if not pdf_path.exists():
+        matches = sorted(output_dir.glob("*.pdf"))
+        if matches:
+            pdf_path = matches[0]
+        else:
+            return None, ["Office to PDF conversion did not produce a PDF."]
+
+    return pdf_path, warnings
+
+
+def w_tag(name: str) -> str:
+    return f"{{{WORD_NS['w']}}}{name}"
+
+
+def word_text(element: ElementTree.Element) -> str:
+    return "".join(text.text or "" for text in element.iter(w_tag("t"))).strip()
+
+
+def word_paragraph_style(paragraph: ElementTree.Element) -> Optional[str]:
+    style = paragraph.find("./w:pPr/w:pStyle", WORD_NS)
+    if style is None:
+        return None
+    return style.attrib.get(w_tag("val"))
+
+
+def format_docx_paragraph(paragraph: ElementTree.Element) -> str:
+    text = word_text(paragraph)
+    if not text:
+        return ""
+
+    style = word_paragraph_style(paragraph) or ""
+    match = re.match(r"Heading(\d+)", style, flags=re.IGNORECASE)
+    if match:
+        level = max(1, min(6, int(match.group(1))))
+        return f"{'#' * level} {text}"
+
+    return text
+
+
+def markdown_table(rows: list[list[str]]) -> str:
+    if not rows:
+        return ""
+
+    width = max(len(row) for row in rows)
+    padded_rows = [row + [""] * (width - len(row)) for row in rows]
+    header = padded_rows[0]
+    separator = ["---" for _ in range(width)]
+    body = padded_rows[1:]
+
+    def render_row(row: list[str]) -> str:
+        cells = [cell.replace("|", "\\|").replace("\n", " ").strip() for cell in row]
+        return "| " + " | ".join(cells) + " |"
+
+    return "\n".join([render_row(header), render_row(separator), *[render_row(row) for row in body]])
+
+
+def extract_docx_native(input_path: Path, assets_dir: Path) -> tuple[str, list[str], list[NormalizedAsset], list[str]]:
+    warnings: list[str] = []
+    text_blocks: list[str] = []
+    tables: list[str] = []
+    assets: list[NormalizedAsset] = []
+
+    try:
+        with zipfile.ZipFile(input_path) as archive:
+            document_xml = archive.read("word/document.xml")
+            root = ElementTree.fromstring(document_xml)
+            body = root.find("w:body", WORD_NS)
+
+            if body is not None:
+                for child in body:
+                    if child.tag == w_tag("p"):
+                        paragraph = format_docx_paragraph(child)
+                        if paragraph:
+                            text_blocks.append(paragraph)
+                    elif child.tag == w_tag("tbl"):
+                        rows: list[list[str]] = []
+                        for row in child.findall("w:tr", WORD_NS):
+                            cells = [word_text(cell) for cell in row.findall("w:tc", WORD_NS)]
+                            if any(cells):
+                                rows.append(cells)
+                        table = markdown_table(rows)
+                        if table:
+                            tables.append(table)
+
+            for name in archive.namelist():
+                if not name.startswith("word/media/"):
+                    continue
+
+                source = Path(name)
+                asset_path = assets_dir / f"embedded-{len(assets) + 1:03d}{source.suffix}"
+                with archive.open(name) as src, asset_path.open("wb") as dst:
+                    shutil.copyfileobj(src, dst)
+
+                mime_type = mimetypes.guess_type(asset_path.name)[0] or "application/octet-stream"
+                width, height = image_size(asset_path)
+                assets.append(
+                    NormalizedAsset(
+                        id=f"asset_{uuid4().hex}",
+                        kind="embedded-image",
+                        path=str(asset_path),
+                        mimeType=mime_type,
+                        width=width,
+                        height=height,
+                    )
+                )
+    except KeyError:
+        warnings.append("DOCX did not contain word/document.xml.")
+    except zipfile.BadZipFile:
+        raise RuntimeError("DOCX file is not a valid Office Open XML archive.")
+
+    return "\n\n".join(text_blocks), tables, assets, warnings
+
+
+def normalize_docx_document(
+    input_path: Path,
+    output_dir: Path,
+    document_id: str,
+    source_file_name: Optional[str],
+) -> NormalizedDocument:
+    assets_dir = output_dir / "assets"
+    render_dir = output_dir / "rendered"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    assets_dir.mkdir(parents=True, exist_ok=True)
+
+    text, markdown_tables, assets, warnings = extract_docx_native(input_path, assets_dir)
+    rendered_pdf, render_warnings = convert_office_to_pdf(input_path, render_dir)
+    warnings.extend(render_warnings)
+
+    page_images: list[Path] = []
+    page_count = 1
+    if rendered_pdf is not None:
+        try:
+            page_count = pdf_page_count(rendered_pdf)
+            page_images, page_warnings = render_pdf_pages(rendered_pdf, assets_dir, page_count)
+            warnings.extend(page_warnings)
+        except Exception as exc:
+            warnings.append(f"DOCX page rendering failed: {exc}")
+
+    pages: list[NormalizedPage] = []
+    page_assets_by_page: dict[int, list[NormalizedAsset]] = {}
+
+    for image_index, image_path in enumerate(page_images):
+        page_number = image_index + 1
+        width, height = image_size(image_path)
+        asset = NormalizedAsset(
+            id=f"asset_{uuid4().hex}",
+            kind="page-image",
+            path=str(image_path),
+            mimeType="image/png",
+            sourcePage=page_number,
+            width=width,
+            height=height,
+        )
+        assets.append(asset)
+        page_assets_by_page.setdefault(page_number, []).append(asset)
+
+    for page_number in range(1, page_count + 1):
+        image_path = page_images[page_number - 1] if page_number <= len(page_images) else None
+        pages.append(
+            NormalizedPage(
+                pageNumber=page_number,
+                text=text if page_number == 1 else "",
+                markdownTables=markdown_tables if page_number == 1 else [],
+                imagePath=str(image_path) if image_path is not None else None,
+                assets=page_assets_by_page.get(page_number, []),
+            )
+        )
+
+    return NormalizedDocument(
+        id=document_id,
+        sourceFileName=source_file_name or input_path.name,
+        fileType="docx",
+        createdAt=utc_now(),
+        pages=pages,
+        assets=assets,
+        warnings=warnings,
+    )
+
+
 def normalize_pdf_document(
     input_path: Path,
     output_dir: Path,
@@ -246,6 +455,13 @@ def normalize_document(
 ) -> NormalizedDocument:
     if file_type == "pdf":
         return normalize_pdf_document(
+            input_path=input_path,
+            output_dir=output_dir,
+            document_id=document_id,
+            source_file_name=source_file_name,
+        )
+    if file_type == "docx":
+        return normalize_docx_document(
             input_path=input_path,
             output_dir=output_dir,
             document_id=document_id,

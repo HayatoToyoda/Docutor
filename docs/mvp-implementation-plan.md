@@ -24,7 +24,7 @@ Team execution rule:
 - [x] Add domain types, local storage directories, job state, and API skeletons.
 - [x] Add Python Worker scaffold with CLI contract and JSON output.
 - [x] Implement PDF extraction and page rendering.
-- [ ] Implement DOCX native extraction plus LibreOffice PDF/page rendering.
+- [x] Implement DOCX native extraction plus LibreOffice PDF/page rendering.
 - [ ] Implement PPTX extraction plus LibreOffice PDF/slide rendering.
 - [ ] Add OpenAI provider, structured output schema, and conversion prompts.
 - [ ] Wire upload-to-real-conversion flow.
