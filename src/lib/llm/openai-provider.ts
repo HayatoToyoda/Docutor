@@ -4,16 +4,20 @@ import { zodTextFormat } from "openai/helpers/zod";
 import type { ResponseInputContent } from "openai/resources/responses/responses";
 import {
   reviewDocumentSchema,
+  reviewSectionSchema,
   type ReviewDocumentOutput,
+  type ReviewSectionOutput,
 } from "@/lib/llm/review-document-schema";
 import {
   DOCUTOR_SYSTEM_PROMPT,
   buildDocumentConversionPrompt,
+  buildSectionRegenerationPrompt,
 } from "@/lib/llm/prompts";
 import type {
   ConversionProvider,
   NormalizedDocument,
   ReviewDocument,
+  ReviewSection,
 } from "@/lib/types";
 
 const DEFAULT_MODEL = "gpt-5.5";
@@ -82,6 +86,19 @@ function normalizeReviewDocument(
   } as ReviewDocument;
 }
 
+function normalizeReviewSection(
+  output: ReviewSectionOutput,
+  source: ReviewSection,
+): ReviewSection {
+  return {
+    ...output,
+    id: source.id,
+    type: source.type,
+    sourcePage: output.sourcePage || source.sourcePage,
+    reviewStatus: "pending",
+  } as ReviewSection;
+}
+
 export function createOpenAIProvider(): ConversionProvider {
   return {
     name: "openai",
@@ -120,6 +137,47 @@ export function createOpenAIProvider(): ConversionProvider {
       }
 
       return normalizeReviewDocument(response.output_parsed, input);
+    },
+    async regenerateSection(input, section) {
+      if (!process.env.OPENAI_API_KEY) {
+        throw new OpenAIProviderError(
+          "OPENAI_API_KEY is required for the OpenAI conversion provider.",
+        );
+      }
+
+      const client = new OpenAI({
+        apiKey: process.env.OPENAI_API_KEY,
+      });
+      const content = await buildUserContent(input);
+      content.push({
+        type: "input_text",
+        text: buildSectionRegenerationPrompt(input, section),
+      });
+
+      const response = await client.responses.parse({
+        model: process.env.OPENAI_MODEL ?? DEFAULT_MODEL,
+        input: [
+          {
+            role: "system",
+            content: DOCUTOR_SYSTEM_PROMPT,
+          },
+          {
+            role: "user",
+            content,
+          },
+        ],
+        text: {
+          format: zodTextFormat(reviewSectionSchema, "review_section"),
+        },
+      });
+
+      if (!response.output_parsed) {
+        throw new OpenAIProviderError(
+          "OpenAI regeneration did not return a parsed review section.",
+        );
+      }
+
+      return normalizeReviewSection(response.output_parsed, section);
     },
   };
 }

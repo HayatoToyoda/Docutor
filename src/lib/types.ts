@@ -94,7 +94,6 @@ export type ReviewAsset = {
 
 export type ReviewSectionBase = {
   id: string;
-  type: SectionType;
   title: string;
   sourcePage: number;
   originalText?: string;
@@ -102,6 +101,10 @@ export type ReviewSectionBase = {
   generatedMarkdown: string;
   reviewStatus: ReviewStatus;
   notes?: string[];
+};
+
+export type NonDiagramSection = ReviewSectionBase & {
+  type: Exclude<SectionType, "diagram">;
 };
 
 export type DiagramSection = ReviewSectionBase & {
@@ -113,7 +116,7 @@ export type DiagramSection = ReviewSectionBase & {
   drawioXml?: string;
 };
 
-export type ReviewSection = ReviewSectionBase | DiagramSection;
+export type ReviewSection = NonDiagramSection | DiagramSection;
 
 export type ReviewDocument = {
   id: string;

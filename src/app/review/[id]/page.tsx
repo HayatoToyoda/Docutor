@@ -302,6 +302,25 @@ export default function ReviewPage() {
     setMessage("Section saved.");
   }
 
+  async function regenerateSection(sectionId: string) {
+    setMessage("Regenerating section...");
+    updateLocalSection(sectionId, { reviewStatus: "regenerating" });
+
+    const response = await fetch(
+      `/api/documents/${params.id}/sections/${sectionId}/regenerate?provider=mock`,
+      { method: "POST" },
+    );
+    const payload = (await response.json()) as DocumentPayload;
+
+    if (!response.ok) {
+      setMessage("Section regeneration failed.");
+      return;
+    }
+
+    setJob(payload.document);
+    setMessage("Section regenerated.");
+  }
+
   const acceptedCount = sections.filter(
     (section) => section.reviewStatus === "accepted",
   ).length;
@@ -372,6 +391,13 @@ export default function ReviewPage() {
                   </p>
                 </div>
                 <div className="flex gap-2">
+                  <button
+                    className="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700"
+                    onClick={() => regenerateSection(selectedSection.id)}
+                    type="button"
+                  >
+                    Regenerate
+                  </button>
                   <button
                     className="rounded border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-700"
                     onClick={() =>

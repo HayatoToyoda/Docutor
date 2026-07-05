@@ -32,7 +32,7 @@ Team execution rule:
 - [x] Add Mermaid editor and preview.
 - [x] Add `DiagramIR` to Mermaid/draw.io generation.
 - [x] Add diagrams.net embedded editor and XML persistence.
-- [ ] Add regenerate section/diagram flow.
+- [x] Add regenerate section/diagram flow.
 - [ ] Add Markdown and ZIP exports.
 - [ ] Add Codex App Server local adapter behind an env flag.
 - [ ] Add fixtures, tests, browser smoke checks, and final polish.
