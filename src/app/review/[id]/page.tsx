@@ -3,6 +3,7 @@
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useId, useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
+import { AppHeader } from "@/app/components/app-header";
 import type {
   DiagramSection,
   ReviewSection,
@@ -28,15 +29,28 @@ function isDiagramSection(
 
 function statusTone(status: ReviewSection["reviewStatus"]) {
   if (status === "accepted") {
-    return "border-emerald-200 bg-emerald-50 text-emerald-700";
+    return "bg-[#e6f4ec] text-[#2e9e6b]";
   }
   if (status === "rejected") {
-    return "border-rose-200 bg-rose-50 text-rose-700";
+    return "bg-[#fdf3f2] text-[#c4554d]";
   }
   if (status === "regenerating") {
-    return "border-amber-200 bg-amber-50 text-amber-700";
+    return "bg-[#fdf6e8] text-[#a46b14]";
   }
-  return "border-slate-200 bg-slate-50 text-slate-600";
+  return "bg-[#f0f1f4] text-[#6b6f7b]";
+}
+
+function statusLabel(status: ReviewSection["reviewStatus"]) {
+  if (status === "accepted") return "Accepted";
+  if (status === "rejected") return "Rejected";
+  if (status === "regenerating") return "Regenerating";
+  return "Pending review";
+}
+
+function typeLabel(section: ReviewSection) {
+  return section.type === "paragraph"
+    ? "TEXT"
+    : section.type.toUpperCase();
 }
 
 function MermaidPreview({ code }: { code: string }) {
@@ -90,7 +104,7 @@ function MermaidPreview({ code }: { code: string }) {
 
   if (error) {
     return (
-      <div className="rounded border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
+      <div className="rounded-md border border-[#f3d6d3] bg-[#fdf3f2] p-3 text-sm text-[#a4453d]">
         {error}
       </div>
     );
@@ -98,7 +112,7 @@ function MermaidPreview({ code }: { code: string }) {
 
   if (!svg) {
     return (
-      <div className="rounded border border-slate-200 bg-slate-50 p-3 text-sm text-slate-500">
+      <div className="rounded-md border border-[#e5e6ea] bg-[#fafafb] p-3 text-sm text-[#8b8f9a]">
         No Mermaid diagram code.
       </div>
     );
@@ -106,7 +120,7 @@ function MermaidPreview({ code }: { code: string }) {
 
   return (
     <div
-      className="overflow-auto rounded border border-slate-200 bg-white p-3"
+      className="flex min-h-[330px] items-center justify-center overflow-auto bg-white p-4 [&_svg]:max-w-full"
       dangerouslySetInnerHTML={{ __html: svg }}
     />
   );
@@ -196,19 +210,19 @@ function DrawioEditor({
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <span className="text-sm font-medium text-slate-700">
+        <span className="text-sm font-medium text-[#4a4e58]">
           draw.io editor
         </span>
-        <span className="text-xs text-slate-500">{editorStatus}</span>
+        <span className="text-xs text-[#8b8f9a]">{editorStatus}</span>
       </div>
       <iframe
-        className="h-[420px] w-full rounded border border-slate-300"
+        className="h-[420px] w-full rounded-md border border-[#dcdee4]"
         ref={setIframeElement}
         src="https://embed.diagrams.net/?embed=1&proto=json&spin=1&libraries=1&noExitBtn=1&saveAndExit=0"
         title={title}
       />
       <button
-        className="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700"
+        className="rounded-md border border-[#dcdee4] bg-white px-3 py-1.5 text-sm font-medium text-[#4a4e58] hover:border-[#4c5fd5] hover:text-[#4c5fd5]"
         onClick={() => onSave(xml)}
         type="button"
       >
@@ -226,6 +240,7 @@ export default function ReviewPage() {
     null,
   );
   const [message, setMessage] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<"preview" | "edit">("preview");
   const reviewDocument = job?.reviewDocument;
   const sections = useMemo(
     () => reviewDocument?.sections ?? [],
@@ -346,214 +361,313 @@ export default function ReviewPage() {
   const acceptedCount = sections.filter(
     (section) => section.reviewStatus === "accepted",
   ).length;
+  const reviewedCount = sections.filter(
+    (section) =>
+      section.reviewStatus === "accepted" ||
+      section.reviewStatus === "rejected",
+  ).length;
+  const progress =
+    sections.length === 0 ? 0 : Math.round((reviewedCount / sections.length) * 100);
 
   return (
-    <main className="min-h-screen bg-slate-50 text-slate-950">
-      <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
-          <div>
-            <p className="text-sm font-semibold tracking-wide text-slate-500">
-              Docutor
-            </p>
-            <h1 className="text-xl font-semibold">
-              {reviewDocument?.title ?? "Review document"}
-            </h1>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="text-sm text-slate-600">
-              {acceptedCount} / {sections.length} accepted
-            </div>
-            <button
-              className="rounded bg-cyan-700 px-3 py-1.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-slate-300"
-              disabled={sections.length === 0 || acceptedCount !== sections.length}
-              onClick={() => router.push(`/complete/${params.id}`)}
-              type="button"
-            >
-              Complete
-            </button>
-            <button
-              className="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={acceptedCount === 0}
-              onClick={() => downloadExport("markdown")}
-              type="button"
-            >
-              Markdown
-            </button>
-            <button
-              className="rounded bg-slate-900 px-3 py-1.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-slate-300"
-              disabled={acceptedCount === 0}
-              onClick={() => downloadExport("zip")}
-              type="button"
-            >
-              ZIP
-            </button>
-          </div>
-        </div>
-      </header>
+    <main className="flex min-h-screen flex-col bg-[#f6f6f8] text-[#1b1d22]">
+      <AppHeader
+        activeStep="review"
+        status={message ?? `${acceptedCount} sections accepted`}
+      />
 
-      <section className="mx-auto grid max-w-7xl gap-4 px-6 py-6 lg:grid-cols-[280px_1fr_1fr]">
-        <aside className="rounded border border-slate-200 bg-white p-3 shadow-sm">
-          <h2 className="px-2 text-sm font-semibold text-slate-700">
-            Sections
-          </h2>
-          <div className="mt-3 space-y-2">
+      <div className="grid min-h-0 flex-1 lg:h-[calc(100vh-56px)] lg:grid-cols-[292px_minmax(0,1fr)]">
+        <aside className="flex min-h-0 flex-col border-r border-[#e5e6ea] bg-white">
+          <div className="border-b border-[#f0f1f4] p-4">
+            <p className="truncate text-sm font-semibold">
+              {reviewDocument?.sourceFileName ?? job?.sourceFileName ?? "Document"}
+            </p>
+            <p className="mt-1 text-xs text-[#8b8f9a]">
+              {sections.length} sections · {acceptedCount} accepted
+            </p>
+            <div className="mt-3 h-1 overflow-hidden rounded-full bg-[#f0f1f4]">
+              <div
+                className="h-full rounded-full bg-[#2e9e6b] transition-all"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+          </div>
+
+          <div className="min-h-0 flex-1 overflow-y-auto p-2">
             {sections.map((section) => (
               <button
-                className={`w-full rounded border px-3 py-2 text-left text-sm ${
+                className={`mb-0.5 w-full rounded-lg border px-3 py-2.5 text-left transition ${
                   selectedSection?.id === section.id
-                    ? "border-cyan-700 bg-cyan-50"
-                    : "border-slate-200 bg-white"
+                    ? "border-[#c7cdf1] bg-[#eef0fc]"
+                    : "border-transparent hover:bg-[#f3f4f8]"
                 }`}
                 key={section.id}
-                onClick={() => setSelectedSectionId(section.id)}
+                onClick={() => {
+                  setSelectedSectionId(section.id);
+                  setViewMode("preview");
+                }}
                 type="button"
               >
-                <span className="block font-medium text-slate-900">
+                <span className="flex items-center justify-between gap-2">
+                  <span className="text-[10px] font-bold tracking-[0.06em] text-[#8b8f9a]">
+                    {typeLabel(section)}
+                  </span>
+                  <span
+                    className={`h-2 w-2 shrink-0 rounded-full ${
+                      section.reviewStatus === "accepted"
+                        ? "bg-[#2e9e6b]"
+                        : section.reviewStatus === "rejected"
+                          ? "bg-[#c4554d]"
+                          : section.reviewStatus === "regenerating"
+                            ? "bg-[#b7791f]"
+                            : "bg-[#9aa0ab]"
+                    }`}
+                  />
+                </span>
+                <span className="mt-1.5 block text-[13px] font-medium leading-5">
                   {section.title}
                 </span>
-                <span className="mt-1 block text-xs text-slate-500">
-                  Page {section.sourcePage} · {section.type}
-                </span>
-                <span
-                  className={`mt-2 inline-flex rounded border px-2 py-0.5 text-xs ${statusTone(
-                    section.reviewStatus,
-                  )}`}
-                >
-                  {section.reviewStatus}
+                <span className="mt-0.5 block text-[11px] text-[#9aa0ab]">
+                  Page {section.sourcePage} · {statusLabel(section.reviewStatus)}
                 </span>
               </button>
             ))}
           </div>
         </aside>
 
-        <section className="rounded border border-slate-200 bg-white p-4 shadow-sm">
-          {selectedSection ? (
-            <>
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <h2 className="text-base font-semibold">
-                    {selectedSection.title}
-                  </h2>
-                  <p className="text-sm text-slate-500">
-                    Source page {selectedSection.sourcePage}
-                  </p>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    className="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700"
-                    onClick={() => regenerateSection(selectedSection.id)}
-                    type="button"
-                  >
-                    Regenerate
-                  </button>
-                  <button
-                    className="rounded border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-700"
-                    onClick={() =>
-                      saveSection(selectedSection.id, {
-                        reviewStatus: "accepted",
-                      })
-                    }
-                    type="button"
-                  >
-                    Accept
-                  </button>
-                  <button
-                    className="rounded border border-rose-200 bg-rose-50 px-3 py-1.5 text-sm font-medium text-rose-700"
-                    onClick={() =>
-                      saveSection(selectedSection.id, {
-                        reviewStatus: "rejected",
-                      })
-                    }
-                    type="button"
-                  >
-                    Reject
-                  </button>
-                </div>
-              </div>
-
-              <textarea
-                className="mt-4 h-[520px] w-full resize-none rounded border border-slate-300 bg-slate-50 p-3 font-mono text-sm leading-6 text-slate-900"
-                onBlur={() =>
-                  saveSection(selectedSection.id, {
-                    generatedMarkdown: selectedSection.generatedMarkdown,
-                  })
-                }
-                onChange={(event) =>
-                  updateLocalSection(selectedSection.id, {
-                    generatedMarkdown: event.target.value,
-                  })
-                }
-                value={selectedSection.generatedMarkdown}
-              />
-            </>
-          ) : (
-            <p className="text-sm text-slate-600">
-              No review sections are available.
-            </p>
-          )}
-        </section>
-
-        <section className="rounded border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="flex items-center justify-between">
-            <h2 className="text-base font-semibold">
-              {isDiagramSection(selectedSection)
-                ? "Diagram preview"
-                : "Markdown preview"}
-            </h2>
-            {message ? <p className="text-sm text-slate-500">{message}</p> : null}
-          </div>
-          {isDiagramSection(selectedSection) ? (
-            <div className="mt-4 space-y-4">
-              {selectedSection.format === "mermaid" ? (
+        <section className="flex min-h-0 min-w-0 flex-col">
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-7 sm:py-6">
+            <div className="mx-auto max-w-[1120px]">
+              {selectedSection ? (
                 <>
-                  <MermaidPreview code={selectedSection.generatedCode} />
-                  <label className="block">
-                    <span className="text-sm font-medium text-slate-700">
-                      Mermaid code
-                    </span>
-                    <textarea
-                      className="mt-2 h-64 w-full resize-none rounded border border-slate-300 bg-slate-50 p-3 font-mono text-sm leading-6 text-slate-900"
-                      onBlur={() =>
-                        saveSection(selectedSection.id, {
-                          generatedCode: selectedSection.generatedCode,
-                        })
-                      }
-                      onChange={(event) =>
-                        updateLocalSection(selectedSection.id, {
-                          generatedCode: event.target.value,
-                        })
-                      }
-                      value={selectedSection.generatedCode}
-                    />
-                  </label>
+                  <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="rounded bg-[#eef0fc] px-2 py-1 text-[10px] font-bold tracking-[0.07em] text-[#4c5fd5]">
+                          {typeLabel(selectedSection)}
+                        </span>
+                        <span
+                          className={`rounded px-2 py-1 text-[11px] font-semibold ${statusTone(
+                            selectedSection.reviewStatus,
+                          )}`}
+                        >
+                          {statusLabel(selectedSection.reviewStatus)}
+                        </span>
+                      </div>
+                      <h1 className="mt-2 text-xl font-semibold">
+                        {selectedSection.title}
+                      </h1>
+                      <p className="mt-1 text-xs text-[#8b8f9a]">
+                        Source: page {selectedSection.sourcePage}
+                      </p>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        className="rounded-md border border-[#dcdee4] bg-white px-3 py-2 text-xs font-medium text-[#4a4e58] hover:border-[#4c5fd5]"
+                        onClick={() => regenerateSection(selectedSection.id)}
+                        type="button"
+                      >
+                        ↻ Regenerate
+                      </button>
+                      <button
+                        className="rounded-md border border-[#efc9c5] bg-white px-3 py-2 text-xs font-medium text-[#c4554d] hover:bg-[#fdf7f6]"
+                        onClick={() =>
+                          saveSection(selectedSection.id, {
+                            reviewStatus: "rejected",
+                          })
+                        }
+                        type="button"
+                      >
+                        Reject
+                      </button>
+                      <button
+                        className="rounded-md border border-[#2e9e6b] bg-[#2e9e6b] px-4 py-2 text-xs font-semibold text-white hover:bg-[#27875b]"
+                        onClick={() =>
+                          saveSection(selectedSection.id, {
+                            reviewStatus: "accepted",
+                          })
+                        }
+                        type="button"
+                      >
+                        ✓ Accept
+                      </button>
+                    </div>
+                  </div>
+
+                  {isDiagramSection(selectedSection) ? (
+                    <div className="mt-4 space-y-4">
+                      <div className="grid gap-4 xl:grid-cols-2">
+                        <div className="overflow-hidden rounded-[10px] border border-[#e5e6ea] bg-white">
+                          <div className="border-b border-[#f0f1f4] px-3.5 py-2.5 text-xs font-semibold tracking-[0.04em] text-[#6b6f7b]">
+                            ORIGINAL SOURCE — PAGE {selectedSection.sourcePage}
+                          </div>
+                          <div className="min-h-[330px] whitespace-pre-wrap bg-[#fafafb] p-4 text-[13px] leading-7 text-[#4a4e58]">
+                            {selectedSection.originalText ||
+                              "The original visual was captured from the source document. Compare its structure with the generated diagram."}
+                          </div>
+                        </div>
+                        <div className="overflow-hidden rounded-[10px] border border-[#e5e6ea] bg-white">
+                          <div className="flex items-center justify-between border-b border-[#f0f1f4] px-3.5 py-2.5">
+                            <span className="text-xs font-semibold tracking-[0.04em] text-[#6b6f7b]">
+                              GENERATED PREVIEW
+                            </span>
+                            <span className="text-[11px] text-[#9aa0ab]">
+                              {selectedSection.format}
+                            </span>
+                          </div>
+                          {selectedSection.format === "mermaid" ? (
+                            <MermaidPreview code={selectedSection.generatedCode} />
+                          ) : (
+                            <div className="p-4 text-sm text-[#6b6f7b]">
+                              Open the draw.io editor below to inspect this diagram.
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="overflow-hidden rounded-[10px] border border-[#e5e6ea] bg-white">
+                        <div className="border-b border-[#f0f1f4] px-3.5 py-2.5 text-xs font-semibold tracking-[0.04em] text-[#6b6f7b]">
+                          DIAGRAM SOURCE
+                        </div>
+                        {selectedSection.format === "mermaid" ? (
+                          <textarea
+                            className="block h-64 w-full resize-y border-0 bg-[#fcfcfd] p-4 font-mono text-xs leading-6 text-[#1b1d22] outline-none"
+                            onBlur={() =>
+                              saveSection(selectedSection.id, {
+                                generatedCode: selectedSection.generatedCode,
+                              })
+                            }
+                            onChange={(event) =>
+                              updateLocalSection(selectedSection.id, {
+                                generatedCode: event.target.value,
+                              })
+                            }
+                            value={selectedSection.generatedCode}
+                          />
+                        ) : null}
+                        {selectedSection.drawioXml ? (
+                          <div className="p-4">
+                            <DrawioEditor
+                              onChange={(nextXml) =>
+                                updateLocalSection(selectedSection.id, {
+                                  drawioXml: nextXml,
+                                })
+                              }
+                              onSave={(nextXml) =>
+                                saveSection(selectedSection.id, {
+                                  drawioXml: nextXml,
+                                })
+                              }
+                              title={selectedSection.title}
+                              xml={selectedSection.drawioXml}
+                            />
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="mt-4 grid items-start gap-4 xl:grid-cols-[5fr_7fr]">
+                      <div className="overflow-hidden rounded-[10px] border border-[#e5e6ea] bg-white">
+                        <div className="border-b border-[#f0f1f4] px-3.5 py-2.5 text-xs font-semibold tracking-[0.04em] text-[#6b6f7b]">
+                          ORIGINAL SOURCE — PAGE {selectedSection.sourcePage}
+                        </div>
+                        <div className="min-h-[320px] whitespace-pre-wrap bg-[#fafafb] p-4 text-[13px] leading-7 text-[#4a4e58]">
+                          {selectedSection.originalText ||
+                            "Original source text was not included for this section."}
+                        </div>
+                      </div>
+
+                      <div className="overflow-hidden rounded-[10px] border border-[#e5e6ea] bg-white">
+                        <div className="flex items-center justify-between border-b border-[#f0f1f4] px-3.5 py-2">
+                          <span className="text-xs font-semibold tracking-[0.04em] text-[#6b6f7b]">
+                            GENERATED MARKDOWN
+                          </span>
+                          <div className="flex rounded-md bg-[#f0f1f4] p-0.5">
+                            {(["preview", "edit"] as const).map((mode) => (
+                              <button
+                                className={`rounded-[5px] px-3 py-1 text-xs font-medium ${
+                                  viewMode === mode
+                                    ? "bg-white text-[#1b1d22] shadow-sm"
+                                    : "text-[#6b6f7b]"
+                                }`}
+                                key={mode}
+                                onClick={() => setViewMode(mode)}
+                                type="button"
+                              >
+                                {mode === "preview" ? "Preview" : "Edit"}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        {viewMode === "preview" ? (
+                          <div className="docutor-markdown min-h-[320px] p-5">
+                            <ReactMarkdown>
+                              {selectedSection.generatedMarkdown}
+                            </ReactMarkdown>
+                          </div>
+                        ) : (
+                          <textarea
+                            className="block h-[420px] w-full resize-y border-0 bg-[#fcfcfd] p-4 font-mono text-xs leading-6 text-[#1b1d22] outline-none"
+                            onBlur={() =>
+                              saveSection(selectedSection.id, {
+                                generatedMarkdown:
+                                  selectedSection.generatedMarkdown,
+                              })
+                            }
+                            onChange={(event) =>
+                              updateLocalSection(selectedSection.id, {
+                                generatedMarkdown: event.target.value,
+                              })
+                            }
+                            value={selectedSection.generatedMarkdown}
+                          />
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </>
-              ) : null}
-              {selectedSection.drawioXml ? (
-                <DrawioEditor
-                  onChange={(nextXml) =>
-                    updateLocalSection(selectedSection.id, {
-                      drawioXml: nextXml,
-                    })
-                  }
-                  onSave={(nextXml) =>
-                    saveSection(selectedSection.id, {
-                      drawioXml: nextXml,
-                    })
-                  }
-                  title={selectedSection.title}
-                  xml={selectedSection.drawioXml}
-                />
-              ) : null}
+              ) : (
+                <div className="rounded-[10px] border border-[#e5e6ea] bg-white p-6 text-sm text-[#6b6f7b]">
+                  No review sections are available.
+                </div>
+              )}
             </div>
-          ) : (
-            <div className="prose prose-slate mt-4 max-w-none text-sm">
-              <ReactMarkdown>
-                {selectedSection?.generatedMarkdown ?? ""}
-              </ReactMarkdown>
+          </div>
+
+          <footer className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-[#e5e6ea] bg-white px-4 py-3 sm:px-7">
+            <div className="flex items-center gap-3 text-xs text-[#6b6f7b]">
+              <span>
+                {reviewedCount} of {sections.length} sections reviewed
+              </span>
+              <button
+                className="font-medium text-[#4c5fd5] disabled:text-[#b4b8c0]"
+                disabled={acceptedCount === 0}
+                onClick={() => downloadExport("markdown")}
+                type="button"
+              >
+                Download Markdown
+              </button>
+              <button
+                className="font-medium text-[#4c5fd5] disabled:text-[#b4b8c0]"
+                disabled={acceptedCount === 0}
+                onClick={() => downloadExport("zip")}
+                type="button"
+              >
+                Download ZIP
+              </button>
             </div>
-          )}
+            <button
+              className="rounded-lg bg-[#4c5fd5] px-4 py-2.5 text-xs font-semibold text-white hover:bg-[#3f51c0] disabled:bg-[#c9ccd4]"
+              disabled={sections.length === 0 || acceptedCount !== sections.length}
+              onClick={() => router.push(`/complete/${params.id}`)}
+              type="button"
+            >
+              Complete review →
+            </button>
+          </footer>
         </section>
-      </section>
+      </div>
     </main>
   );
 }

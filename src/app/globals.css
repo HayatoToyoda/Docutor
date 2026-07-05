@@ -6,8 +6,8 @@
 
 :root {
   color-scheme: light;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  --background: #f6f6f8;
+  --foreground: #1b1d22;
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
@@ -47,9 +47,35 @@
 body {
   margin: 0;
   font-family:
-    Arial,
-    Helvetica,
+    Inter,
+    "IBM Plex Sans",
+    ui-sans-serif,
+    system-ui,
     sans-serif;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+textarea:focus,
+input:focus,
+select:focus,
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid #c7cdf1;
+  outline-offset: 2px;
 }
 
 @theme inline {
@@ -139,4 +165,85 @@ body {
   html {
     @apply font-sans;
   }
+}
+
+.docutor-markdown {
+  color: #343741;
+  font-size: 13.5px;
+  line-height: 1.7;
+}
+
+.docutor-markdown h1,
+.docutor-markdown h2,
+.docutor-markdown h3 {
+  color: #1b1d22;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.docutor-markdown h1 {
+  margin: 0 0 12px;
+  font-size: 20px;
+}
+
+.docutor-markdown h2 {
+  margin: 18px 0 8px;
+  font-size: 16px;
+}
+
+.docutor-markdown h3 {
+  margin: 16px 0 6px;
+  font-size: 14px;
+}
+
+.docutor-markdown p {
+  margin: 8px 0;
+}
+
+.docutor-markdown ul,
+.docutor-markdown ol {
+  margin: 8px 0;
+  padding-left: 22px;
+}
+
+.docutor-markdown ul {
+  list-style: disc;
+}
+
+.docutor-markdown ol {
+  list-style: decimal;
+}
+
+.docutor-markdown table {
+  width: 100%;
+  margin: 12px 0;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+
+.docutor-markdown th,
+.docutor-markdown td {
+  border: 1px solid #e5e6ea;
+  padding: 7px 9px;
+  text-align: left;
+}
+
+.docutor-markdown th {
+  background: #f6f6f8;
+  font-weight: 600;
+}
+
+.docutor-markdown blockquote {
+  margin: 10px 0;
+  border-left: 3px solid #dcdee4;
+  padding-left: 12px;
+  color: #6b6f7b;
+}
+
+.docutor-markdown code {
+  border-radius: 4px;
+  background: #f0f1f4;
+  padding: 1px 5px;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 0.9em;
 }
