@@ -29,6 +29,10 @@ WORD_NS = {
     "w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main",
 }
 
+PPT_NS = {
+    "a": "http://schemas.openxmlformats.org/drawingml/2006/main",
+}
+
 try:
     import pdfplumber  # type: ignore
 except Exception:  # pragma: no cover - optional dependency
@@ -323,6 +327,154 @@ def extract_docx_native(input_path: Path, assets_dir: Path) -> tuple[str, list[s
     return "\n\n".join(text_blocks), tables, assets, warnings
 
 
+def slide_sort_key(name: str) -> int:
+    match = re.search(r"slide(\d+)\.xml$", name)
+    return int(match.group(1)) if match else 0
+
+
+def drawing_text(element: ElementTree.Element) -> str:
+    lines = [
+        text.text.strip()
+        for text in element.iter(f"{{{PPT_NS['a']}}}t")
+        if text.text and text.text.strip()
+    ]
+    return "\n".join(lines)
+
+
+def extract_pptx_tables(root: ElementTree.Element) -> list[str]:
+    tables: list[str] = []
+
+    for table_element in root.findall(".//a:tbl", PPT_NS):
+        rows: list[list[str]] = []
+        for row in table_element.findall("a:tr", PPT_NS):
+            cells = [drawing_text(cell) for cell in row.findall("a:tc", PPT_NS)]
+            if any(cells):
+                rows.append(cells)
+        table = markdown_table(rows)
+        if table:
+            tables.append(table)
+
+    return tables
+
+
+def extract_pptx_native(
+    input_path: Path,
+    assets_dir: Path,
+) -> tuple[dict[int, str], dict[int, list[str]], list[NormalizedAsset], list[str]]:
+    warnings: list[str] = []
+    slide_texts: dict[int, str] = {}
+    slide_tables: dict[int, list[str]] = {}
+    assets: list[NormalizedAsset] = []
+
+    try:
+        with zipfile.ZipFile(input_path) as archive:
+            slide_names = sorted(
+                [name for name in archive.namelist() if re.match(r"ppt/slides/slide\d+\.xml$", name)],
+                key=slide_sort_key,
+            )
+
+            if not slide_names:
+                warnings.append("PPTX did not contain slide XML files.")
+
+            for index, name in enumerate(slide_names, start=1):
+                root = ElementTree.fromstring(archive.read(name))
+                slide_texts[index] = drawing_text(root)
+                slide_tables[index] = extract_pptx_tables(root)
+
+            for name in archive.namelist():
+                if not name.startswith("ppt/media/"):
+                    continue
+
+                source = Path(name)
+                asset_path = assets_dir / f"embedded-{len(assets) + 1:03d}{source.suffix}"
+                with archive.open(name) as src, asset_path.open("wb") as dst:
+                    shutil.copyfileobj(src, dst)
+
+                mime_type = mimetypes.guess_type(asset_path.name)[0] or "application/octet-stream"
+                width, height = image_size(asset_path)
+                assets.append(
+                    NormalizedAsset(
+                        id=f"asset_{uuid4().hex}",
+                        kind="embedded-image",
+                        path=str(asset_path),
+                        mimeType=mime_type,
+                        width=width,
+                        height=height,
+                    )
+                )
+    except zipfile.BadZipFile:
+        raise RuntimeError("PPTX file is not a valid Office Open XML archive.")
+
+    return slide_texts, slide_tables, assets, warnings
+
+
+def normalize_pptx_document(
+    input_path: Path,
+    output_dir: Path,
+    document_id: str,
+    source_file_name: Optional[str],
+) -> NormalizedDocument:
+    assets_dir = output_dir / "assets"
+    render_dir = output_dir / "rendered"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    assets_dir.mkdir(parents=True, exist_ok=True)
+
+    slide_texts, slide_tables, assets, warnings = extract_pptx_native(input_path, assets_dir)
+    rendered_pdf, render_warnings = convert_office_to_pdf(input_path, render_dir)
+    warnings.extend(render_warnings)
+
+    page_images: list[Path] = []
+    page_count = max(len(slide_texts), 1)
+    if rendered_pdf is not None:
+        try:
+            rendered_page_count = pdf_page_count(rendered_pdf)
+            page_count = max(page_count, rendered_page_count)
+            page_images, page_warnings = render_pdf_pages(rendered_pdf, assets_dir, rendered_page_count)
+            warnings.extend(page_warnings)
+        except Exception as exc:
+            warnings.append(f"PPTX slide rendering failed: {exc}")
+
+    pages: list[NormalizedPage] = []
+    page_assets_by_page: dict[int, list[NormalizedAsset]] = {}
+
+    for image_index, image_path in enumerate(page_images):
+        page_number = image_index + 1
+        width, height = image_size(image_path)
+        asset = NormalizedAsset(
+            id=f"asset_{uuid4().hex}",
+            kind="page-image",
+            path=str(image_path),
+            mimeType="image/png",
+            sourcePage=page_number,
+            width=width,
+            height=height,
+        )
+        assets.append(asset)
+        page_assets_by_page.setdefault(page_number, []).append(asset)
+
+    for page_number in range(1, page_count + 1):
+        image_path = page_images[page_number - 1] if page_number <= len(page_images) else None
+        pages.append(
+            NormalizedPage(
+                pageNumber=page_number,
+                text=slide_texts.get(page_number, ""),
+                markdownTables=slide_tables.get(page_number, []),
+                imagePath=str(image_path) if image_path is not None else None,
+                assets=page_assets_by_page.get(page_number, []),
+            )
+        )
+
+    return NormalizedDocument(
+        id=document_id,
+        sourceFileName=source_file_name or input_path.name,
+        fileType="pptx",
+        createdAt=utc_now(),
+        pages=pages,
+        assets=assets,
+        warnings=warnings,
+    )
+
+
 def normalize_docx_document(
     input_path: Path,
     output_dir: Path,
@@ -462,6 +614,13 @@ def normalize_document(
         )
     if file_type == "docx":
         return normalize_docx_document(
+            input_path=input_path,
+            output_dir=output_dir,
+            document_id=document_id,
+            source_file_name=source_file_name,
+        )
+    if file_type == "pptx":
+        return normalize_pptx_document(
             input_path=input_path,
             output_dir=output_dir,
             document_id=document_id,

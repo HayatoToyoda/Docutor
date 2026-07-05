@@ -25,7 +25,7 @@ Team execution rule:
 - [x] Add Python Worker scaffold with CLI contract and JSON output.
 - [x] Implement PDF extraction and page rendering.
 - [x] Implement DOCX native extraction plus LibreOffice PDF/page rendering.
-- [ ] Implement PPTX extraction plus LibreOffice PDF/slide rendering.
+- [x] Implement PPTX extraction plus LibreOffice PDF/slide rendering.
 - [ ] Add OpenAI provider, structured output schema, and conversion prompts.
 - [ ] Wire upload-to-real-conversion flow.
 - [ ] Build review screen with section list, Markdown editor/preview, accept/reject.
