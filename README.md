@@ -4,6 +4,10 @@
   <img src="docs/assets/docutor-image.png" alt="Docutor - From messy docs to clear knowledge" width="520">
 </p>
 
+<p align="center">
+  <strong><a href="https://docutor-smoky.vercel.app/">Open the live app</a></strong>
+</p>
+
 Docutor converts messy enterprise documents into clean, agent-readable Markdown.
 
 The target users are traditional Japanese companies with important specifications,
