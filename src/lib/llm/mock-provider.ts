@@ -1,4 +1,8 @@
-import type { ConversionProvider, ReviewDocument } from "@/lib/types";
+import {
+  diagramIRToDrawioXml,
+  diagramIRToMermaid,
+} from "@/lib/diagrams/diagram-ir";
+import type { ConversionProvider, DiagramIR, ReviewDocument } from "@/lib/types";
 
 export function createMockProvider(): ConversionProvider {
   return {
@@ -9,6 +13,26 @@ export function createMockProvider(): ConversionProvider {
       const firstPageImage = input.assets.find(
         (asset) => asset.kind === "page-image",
       );
+      const diagramIR: DiagramIR = {
+        title: "Mock workflow diagram",
+        nodes: [
+          { id: "A", label: "Receive document", kind: "process" },
+          { id: "B", label: "Extract content", kind: "process" },
+          { id: "C", label: "Diagram found?", kind: "decision" },
+          { id: "D", label: "Review Mermaid", kind: "process" },
+          { id: "E", label: "Review Markdown", kind: "process" },
+        ],
+        edges: [
+          { id: "e1", from: "A", to: "B" },
+          { id: "e2", from: "B", to: "C" },
+          { id: "e3", from: "C", to: "D", label: "Yes" },
+          { id: "e4", from: "C", to: "E", label: "No" },
+        ],
+        groups: [],
+        unclearNotes: [],
+        confidence: 0.8,
+      };
+      const mermaid = diagramIRToMermaid(diagramIR);
 
       const document: ReviewDocument = {
         id: input.id,
@@ -35,31 +59,12 @@ export function createMockProvider(): ConversionProvider {
             title: "Mock workflow diagram",
             sourcePage: firstPage?.pageNumber ?? 1,
             sourceImage: firstPageImage?.path ?? "",
-            generatedMarkdown:
-              "```mermaid\nflowchart TD\n  A[Receive document] --> B[Extract content]\n  B --> C{Diagram found?}\n  C -->|Yes| D[Review Mermaid]\n  C -->|No| E[Review Markdown]\n```",
+            generatedMarkdown: `\`\`\`mermaid\n${mermaid}\n\`\`\``,
             reviewStatus: "pending",
             format: "mermaid",
-            generatedCode:
-              "flowchart TD\n  A[Receive document] --> B[Extract content]\n  B --> C{Diagram found?}\n  C -->|Yes| D[Review Mermaid]\n  C -->|No| E[Review Markdown]",
-            diagramIR: {
-              title: "Mock workflow diagram",
-              nodes: [
-                { id: "A", label: "Receive document", kind: "process" },
-                { id: "B", label: "Extract content", kind: "process" },
-                { id: "C", label: "Diagram found?", kind: "decision" },
-                { id: "D", label: "Review Mermaid", kind: "process" },
-                { id: "E", label: "Review Markdown", kind: "process" },
-              ],
-              edges: [
-                { id: "e1", from: "A", to: "B" },
-                { id: "e2", from: "B", to: "C" },
-                { id: "e3", from: "C", to: "D", label: "Yes" },
-                { id: "e4", from: "C", to: "E", label: "No" },
-              ],
-              groups: [],
-              unclearNotes: [],
-              confidence: 0.8,
-            },
+            generatedCode: mermaid,
+            drawioXml: diagramIRToDrawioXml(diagramIR),
+            diagramIR,
           },
         ],
         assets: input.assets.map((asset) => ({
