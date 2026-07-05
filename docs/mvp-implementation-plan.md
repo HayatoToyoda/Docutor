@@ -29,7 +29,7 @@ Team execution rule:
 - [x] Add OpenAI provider, structured output schema, and conversion prompts.
 - [x] Wire upload-to-real-conversion flow.
 - [x] Build review screen with section list, Markdown editor/preview, accept/reject.
-- [ ] Add Mermaid editor and preview.
+- [x] Add Mermaid editor and preview.
 - [ ] Add `DiagramIR` to Mermaid/draw.io generation.
 - [ ] Add diagrams.net embedded editor and XML persistence.
 - [ ] Add regenerate section/diagram flow.

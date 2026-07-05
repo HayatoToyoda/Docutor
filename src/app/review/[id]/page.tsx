@@ -1,9 +1,13 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
-import type { ReviewSection, StoredDocumentJob } from "@/lib/types";
+import type {
+  DiagramSection,
+  ReviewSection,
+  StoredDocumentJob,
+} from "@/lib/types";
 
 type DocumentPayload = {
   document: StoredDocumentJob;
@@ -11,8 +15,16 @@ type DocumentPayload = {
 
 type SectionPatch = {
   generatedMarkdown?: string;
+  generatedCode?: string;
+  drawioXml?: string;
   reviewStatus?: ReviewSection["reviewStatus"];
 };
+
+function isDiagramSection(
+  section: ReviewSection | null,
+): section is DiagramSection {
+  return section?.type === "diagram";
+}
 
 function statusTone(status: ReviewSection["reviewStatus"]) {
   if (status === "accepted") {
@@ -25,6 +37,79 @@ function statusTone(status: ReviewSection["reviewStatus"]) {
     return "border-amber-200 bg-amber-50 text-amber-700";
   }
   return "border-slate-200 bg-slate-50 text-slate-600";
+}
+
+function MermaidPreview({ code }: { code: string }) {
+  const [svg, setSvg] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const reactId = useId();
+  const elementId = useMemo(
+    () => `mermaid-${reactId.replace(/[^a-zA-Z0-9_-]/g, "")}`,
+    [reactId],
+  );
+
+  useEffect(() => {
+    let active = true;
+
+    async function renderDiagram() {
+      if (!code.trim()) {
+        setSvg("");
+        setError(null);
+        return;
+      }
+
+      try {
+        const mermaid = (await import("mermaid")).default;
+        mermaid.initialize({
+          startOnLoad: false,
+          theme: "base",
+          securityLevel: "strict",
+        });
+        const result = await mermaid.render(elementId, code);
+        if (active) {
+          setSvg(result.svg);
+          setError(null);
+        }
+      } catch (renderError) {
+        if (active) {
+          setSvg("");
+          setError(
+            renderError instanceof Error
+              ? renderError.message
+              : "Mermaid rendering failed.",
+          );
+        }
+      }
+    }
+
+    renderDiagram();
+    return () => {
+      active = false;
+    };
+  }, [code, elementId]);
+
+  if (error) {
+    return (
+      <div className="rounded border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
+        {error}
+      </div>
+    );
+  }
+
+  if (!svg) {
+    return (
+      <div className="rounded border border-slate-200 bg-slate-50 p-3 text-sm text-slate-500">
+        No Mermaid diagram code.
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="overflow-auto rounded border border-slate-200 bg-white p-3"
+      dangerouslySetInnerHTML={{ __html: svg }}
+    />
+  );
 }
 
 export default function ReviewPage() {
@@ -230,14 +315,43 @@ export default function ReviewPage() {
 
         <section className="rounded border border-slate-200 bg-white p-4 shadow-sm">
           <div className="flex items-center justify-between">
-            <h2 className="text-base font-semibold">Markdown preview</h2>
+            <h2 className="text-base font-semibold">
+              {isDiagramSection(selectedSection)
+                ? "Diagram preview"
+                : "Markdown preview"}
+            </h2>
             {message ? <p className="text-sm text-slate-500">{message}</p> : null}
           </div>
-          <div className="prose prose-slate mt-4 max-w-none text-sm">
-            <ReactMarkdown>
-              {selectedSection?.generatedMarkdown ?? ""}
-            </ReactMarkdown>
-          </div>
+          {isDiagramSection(selectedSection) ? (
+            <div className="mt-4 space-y-4">
+              <MermaidPreview code={selectedSection.generatedCode} />
+              <label className="block">
+                <span className="text-sm font-medium text-slate-700">
+                  Mermaid code
+                </span>
+                <textarea
+                  className="mt-2 h-64 w-full resize-none rounded border border-slate-300 bg-slate-50 p-3 font-mono text-sm leading-6 text-slate-900"
+                  onBlur={() =>
+                    saveSection(selectedSection.id, {
+                      generatedCode: selectedSection.generatedCode,
+                    })
+                  }
+                  onChange={(event) =>
+                    updateLocalSection(selectedSection.id, {
+                      generatedCode: event.target.value,
+                    })
+                  }
+                  value={selectedSection.generatedCode}
+                />
+              </label>
+            </div>
+          ) : (
+            <div className="prose prose-slate mt-4 max-w-none text-sm">
+              <ReactMarkdown>
+                {selectedSection?.generatedMarkdown ?? ""}
+              </ReactMarkdown>
+            </div>
+          )}
         </section>
       </section>
     </main>

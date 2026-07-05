@@ -6,6 +6,9 @@ export function createMockProvider(): ConversionProvider {
     async convert(input) {
       const now = new Date().toISOString();
       const firstPage = input.pages[0];
+      const firstPageImage = input.assets.find(
+        (asset) => asset.kind === "page-image",
+      );
 
       const document: ReviewDocument = {
         id: input.id,
@@ -25,6 +28,38 @@ export function createMockProvider(): ConversionProvider {
               firstPage?.text ||
               "TODO: No text was extracted from the source document.",
             reviewStatus: "pending",
+          },
+          {
+            id: "sec_mock_diagram_2",
+            type: "diagram",
+            title: "Mock workflow diagram",
+            sourcePage: firstPage?.pageNumber ?? 1,
+            sourceImage: firstPageImage?.path ?? "",
+            generatedMarkdown:
+              "```mermaid\nflowchart TD\n  A[Receive document] --> B[Extract content]\n  B --> C{Diagram found?}\n  C -->|Yes| D[Review Mermaid]\n  C -->|No| E[Review Markdown]\n```",
+            reviewStatus: "pending",
+            format: "mermaid",
+            generatedCode:
+              "flowchart TD\n  A[Receive document] --> B[Extract content]\n  B --> C{Diagram found?}\n  C -->|Yes| D[Review Mermaid]\n  C -->|No| E[Review Markdown]",
+            diagramIR: {
+              title: "Mock workflow diagram",
+              nodes: [
+                { id: "A", label: "Receive document", kind: "process" },
+                { id: "B", label: "Extract content", kind: "process" },
+                { id: "C", label: "Diagram found?", kind: "decision" },
+                { id: "D", label: "Review Mermaid", kind: "process" },
+                { id: "E", label: "Review Markdown", kind: "process" },
+              ],
+              edges: [
+                { id: "e1", from: "A", to: "B" },
+                { id: "e2", from: "B", to: "C" },
+                { id: "e3", from: "C", to: "D", label: "Yes" },
+                { id: "e4", from: "C", to: "E", label: "No" },
+              ],
+              groups: [],
+              unclearNotes: [],
+              confidence: 0.8,
+            },
           },
         ],
         assets: input.assets.map((asset) => ({
