@@ -14,6 +14,10 @@ Docutor is not intended to be a simple OCR or file conversion tool. The goal is
 to transform unstructured business documents into structured knowledge assets
 that both humans and AI agents can inspect, correct, and use.
 
+## Product Demo
+
+[Watch the 25-second Docutor walkthrough](docs/assets/how-docutor-works.mp4)
+
 ## Core Product Flow
 
 1. Upload a PowerPoint, Word, PDF, or diagram-heavy business document.
