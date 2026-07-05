@@ -12,14 +12,14 @@ const diagramNodeSchema = z.object({
   label: z.string(),
   kind: z
     .enum(["process", "decision", "data", "terminator", "group"])
-    .optional(),
+    .nullable(),
 });
 
 const diagramEdgeSchema = z.object({
   id: z.string(),
   from: z.string(),
   to: z.string(),
-  label: z.string().optional(),
+  label: z.string().nullable(),
 });
 
 const diagramGroupSchema = z.object({
@@ -41,11 +41,11 @@ const reviewSectionBaseSchema = z.object({
   id: z.string(),
   title: z.string(),
   sourcePage: z.number().int().positive(),
-  originalText: z.string().optional(),
-  sourceImage: z.string().optional(),
+  originalText: z.string().nullable(),
+  sourceImage: z.string().nullable(),
   generatedMarkdown: z.string(),
   reviewStatus: reviewStatusSchema,
-  notes: z.array(z.string()).optional(),
+  notes: z.array(z.string()).nullable(),
 });
 
 const nonDiagramSectionSchema = reviewSectionBaseSchema.extend({
@@ -63,9 +63,9 @@ const diagramSectionSchema = reviewSectionBaseSchema.extend({
   type: z.literal("diagram"),
   sourceImage: z.string(),
   format: z.enum(["mermaid", "drawio"]),
-  diagramIR: diagramIRSchema.optional(),
+  diagramIR: diagramIRSchema.nullable(),
   generatedCode: z.string(),
-  drawioXml: z.string().optional(),
+  drawioXml: z.string().nullable(),
 });
 
 export const reviewSectionSchema = z.union([
@@ -87,7 +87,7 @@ export const reviewDocumentSchema = z.object({
       path: z.string(),
       mimeType: z.string(),
       title: z.string(),
-      sourcePage: z.number().int().positive().optional(),
+      sourcePage: z.number().int().positive().nullable(),
     }),
   ),
   warnings: z.array(z.string()),

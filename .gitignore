@@ -57,3 +57,12 @@ exports/
 uploads/
 tmp/
 runtime/
+
+# Agent tooling
+.agents/
+
+# Office lock files
+~$*
+
+# Local package manager cache
+.pnpm-store/

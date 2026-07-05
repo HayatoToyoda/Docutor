@@ -1,0 +1,102 @@
+{"kind":"deck","id":"pr/gmonmj","name":"Deck"}
+{"kind":"layout","layoutId":"4b64b3b2-32a0-496e-b116-a195a65f160e","name":"Master","type":"master"}
+{"kind":"layout","layoutId":"22a079b2-819c-4cf5-8ca3-9662aabff142","name":"Title Slide","type":"title"}
+{"kind":"slide","id":"sl/10nddk","slide":1,"title":"Docutor","textShapes":5}
+{"kind":"textbox","id":"sh/4zidonyd","slide":1,"text":"Docutor","textPreview":"Docutor","textChars":7,"textLines":1,"bbox":[42,40,300,40]}
+{"kind":"textbox","id":"sh/fepkzupw","slide":1,"text":"Agents are getting capable.\nEnterprise knowledge is not.","textPreview":"Agents are getting capable. | Enterprise knowledge is not.","textChars":56,"textLines":2,"bbox":[42,170,960,210]}
+{"kind":"textbox","id":"sh/mtwra5gb","slide":1,"text":"The missing layer is a human review layer for messy documents, diagrams, and business rules.","textPreview":"The missing layer is a human review layer for messy documents, diagrams, and business rules.","textChars":92,"textLines":1,"bbox":[42,430,700,78]}
+{"kind":"shape","id":"sh/xc3ylc7u","slide":1,"bbox":[820,430,376,124]}
+{"kind":"textbox","id":"sh/4r65wjud","slide":1,"text":"Make the knowledge trustworthy before agents act.","textPreview":"Make the knowledge trustworthy before agents act.","textChars":49,"textLines":1,"bbox":[850,467,316,70]}
+{"kind":"textbox","id":"sh/f6dcbulw","slide":1,"text":"01","textPreview":"01","textChars":2,"textLines":1,"bbox":[1168,656,70,26]}
+{"kind":"notes","id":"nt/10nddk","slide":1,"text":""}
+{"kind":"slide","id":"sl/moegui","slide":2,"title":"The blocker is not the agent.","textShapes":12}
+{"kind":"textbox","id":"sh/87ed8bat","slide":2,"text":"The blocker is not the agent.","textPreview":"The blocker is not the agent.","textChars":29,"textLines":1,"bbox":[42,36,1060,118]}
+{"kind":"textbox","id":"sh/fmlkjm1c","slide":2,"text":"It is the knowledge the agent has to work with.","textPreview":"It is the knowledge the agent has to work with.","textChars":47,"textLines":1,"bbox":[42,154,820,52]}
+{"kind":"shape","id":"sh/q1orytsv","slide":2,"bbox":[42,250,360,300]}
+{"kind":"shape","id":"sh/1gvy90je","slide":2,"bbox":[42,250,8,300]}
+{"kind":"textbox","id":"sh/8z25kb6x","slide":2,"text":"AGENTS","textPreview":"AGENTS","textChars":6,"textLines":1,"bbox":[68,276,308,28]}
+{"kind":"textbox","id":"sh/je9cvixc","slide":2,"text":"They can plan and execute.","textPreview":"They can plan and execute.","textChars":26,"textLines":1,"bbox":[68,320,308,76]}
+{"kind":"textbox","id":"sh/qtcj6tov","slide":2,"text":"Modern agents can call tools, coordinate steps, and move work forward.","textPreview":"Modern agents can call tools, coordinate steps, and move work forward.","textChars":70,"textLines":1,"bbox":[68,410,308,110]}
+{"kind":"shape","id":"sh/xczed8v6","slide":2,"bbox":[460,250,360,300]}
+{"kind":"shape","id":"sh/8v6psfil","slide":2,"bbox":[460,250,8,300]}
+{"kind":"textbox","id":"sh/yhgn29gr","slide":2,"text":"ENTERPRISE CONTEXT","textPreview":"ENTERPRISE CONTEXT","textChars":18,"textLines":1,"bbox":[486,276,308,28]}
+{"kind":"textbox","id":"sh/n29gr2p8","slide":2,"text":"It still lives in messy files.","textPreview":"It still lives in messy files.","textChars":30,"textLines":1,"bbox":[486,320,308,76]}
+{"kind":"textbox","id":"sh/gn29gr2p","slide":2,"text":"Specifications, business rules, approvals, and exceptions are scattered across PowerPoint, Word, PDF, and diagrams.","textPreview":"Specifications, business rules, approvals, and exceptions are scattered across PowerPoint, Word, PDF, and diagrams.","textChars":115,"textLines":1,"bbox":[486,410,308,110]}
+{"kind":"shape","id":"sh/58z25kb6","slide":2,"bbox":[878,250,360,300]}
+{"kind":"shape","id":"sh/y90je9cv","slide":2,"bbox":[878,250,8,300]}
+{"kind":"textbox","id":"sh/nuxc3ylc","slide":2,"text":"RESULT","textPreview":"RESULT","textChars":6,"textLines":1,"bbox":[904,276,308,28]}
+{"kind":"textbox","id":"sh/gbq1oryt","slide":2,"text":"Agents stall or guess.","textPreview":"Agents stall or guess.","textChars":22,"textLines":1,"bbox":[904,320,308,76]}
+{"kind":"textbox","id":"sh/5wjudg7a","slide":2,"text":"If the source knowledge is not structured, the agent cannot safely decide what matters.","textPreview":"If the source knowledge is not structured, the agent cannot safely decide what matters.","textChars":87,"textLines":1,"bbox":[904,410,308,110]}
+{"kind":"textbox","id":"sh/u54zidon","slide":2,"text":"02","textPreview":"02","textChars":2,"textLines":1,"bbox":[1168,656,70,26]}
+{"kind":"notes","id":"nt/moegui","slide":2,"text":""}
+{"kind":"slide","id":"sl/pf0r3l","slide":3,"title":"Complex diagrams break first.","textShapes":5}
+{"kind":"textbox","id":"sh/7y1kre1w","slide":3,"text":"Complex diagrams break first.","textPreview":"Complex diagrams break first.","textChars":29,"textLines":1,"bbox":[42,36,1060,118]}
+{"kind":"textbox","id":"sh/wjudg7ad","slide":3,"text":"A single wrong arrow can change the business rule.","textPreview":"A single wrong arrow can change the business rule.","textChars":50,"textLines":1,"bbox":[42,154,370,54]}
+{"kind":"textbox","id":"sh/p4r65wju","slide":3,"text":"The model may capture text, but the risk is in the relationships: branching, grouping, approval paths, exceptions, and hierarchy.","textPreview":"The model may capture text, but the risk is in the relationships: branching, grouping, approval paths, exceptions, and hierarchy.","textChars":129,"textLines":1,"bbox":[42,230,360,160]}
+{"kind":"shape","id":"sh/i5sneloj","slide":3,"bbox":[42,430,360,104]}
+{"kind":"textbox","id":"sh/7qpg3ex0","slide":3,"text":"This is exactly where human review should be fast, visual, and easy to correct.","textPreview":"This is exactly where human review should be fast, visual, and easy to correct.","textChars":79,"textLines":1,"bbox":[68,456,308,58]}
+{"kind":"textbox","id":"sh/pwb2hwfy","slide":3,"text":"03","textPreview":"03","textChars":2,"textLines":1,"bbox":[1168,656,70,26]}
+{"kind":"image","id":"im/l87ed8ba","slide":3,"name":"","alt":"Ringi approval flow diagram used as a complex enterprise document example","bbox":[452,170,746,454]}
+{"kind":"notes","id":"nt/pf0r3l","slide":3,"text":""}
+{"kind":"slide","id":"sl/147azm","slide":4,"title":"Do we wait for better models?","textShapes":6}
+{"kind":"textbox","id":"sh/y90je9cv","slide":4,"text":"Do we wait for better models?","textPreview":"Do we wait for better models?","textChars":29,"textLines":1,"bbox":[42,90,760,80]}
+{"kind":"textbox","id":"sh/5wjudg7a","slide":4,"text":"No.","textPreview":"No.","textChars":3,"textLines":1,"bbox":[42,224,220,98]}
+{"kind":"textbox","id":"sh/gbq1oryt","slide":4,"text":"Use today's models.\nReview risky meaning.","textPreview":"Use today's models. | Review risky meaning.","textChars":41,"textLines":2,"bbox":[330,238,520,120]}
+{"kind":"shape","id":"sh/n29gr2p8","slide":4,"bbox":[42,430,820,1]}
+{"kind":"textbox","id":"sh/yhgn29gr","slide":4,"text":"That is the product gap: make uncertainty visible and correction easy.","textPreview":"That is the product gap: make uncertainty visible and correction easy.","textChars":70,"textLines":1,"bbox":[42,482,800,66]}
+{"kind":"shape","id":"sh/58z25kb6","slide":4,"bbox":[930,214,268,260]}
+{"kind":"textbox","id":"sh/gn29gr2p","slide":4,"text":"HITL\nby design","textPreview":"HITL | by design","textChars":14,"textLines":2,"bbox":[960,266,208,120]}
+{"kind":"textbox","id":"sh/neloj2t8","slide":4,"text":"04","textPreview":"04","textChars":2,"textLines":1,"bbox":[1168,656,70,26]}
+{"kind":"notes","id":"nt/147azm","slide":4,"text":""}
+{"kind":"slide","id":"sl/1ng7w5","slide":5,"title":"Docutor: convert automatically, review visually, export trusted knowledge.","textShapes":11}
+{"kind":"textbox","id":"sh/xs72x4na","slide":5,"text":"Docutor: convert automatically, review visually, export trusted knowledge.","textPreview":"Docutor: convert automatically, review visually, export trusted knowledge.","textChars":74,"textLines":1,"bbox":[42,36,1060,118]}
+{"kind":"shape","id":"sh/q1orytsv","slide":5,"bbox":[42,250,360,260]}
+{"kind":"textbox","id":"sh/fmlkjm1c","slide":5,"text":"01","textPreview":"01","textChars":2,"textLines":1,"bbox":[70,278,70,34]}
+{"kind":"textbox","id":"sh/8z25kb6x","slide":5,"text":"Convert","textPreview":"Convert","textChars":7,"textLines":1,"bbox":[70,342,270,48]}
+{"kind":"textbox","id":"sh/1gvy90je","slide":5,"text":"Extract text, tables, images, and diagram candidates.","textPreview":"Extract text, tables, images, and diagram candidates.","textChars":53,"textLines":1,"bbox":[70,416,290,70]}
+{"kind":"shape","id":"sh/qtcj6tov","slide":5,"bbox":[460,250,360,260]}
+{"kind":"textbox","id":"sh/je9cvixc","slide":5,"text":"02","textPreview":"02","textChars":2,"textLines":1,"bbox":[488,278,70,34]}
+{"kind":"textbox","id":"sh/8v6psfil","slide":5,"text":"Review","textPreview":"Review","textChars":6,"textLines":1,"bbox":[488,342,270,48]}
+{"kind":"textbox","id":"sh/xczed8v6","slide":5,"text":"Compare original evidence with generated Markdown and diagrams.","textPreview":"Compare original evidence with generated Markdown and diagrams.","textChars":63,"textLines":1,"bbox":[488,416,290,70]}
+{"kind":"shape","id":"sh/donyd0z6","slide":5,"bbox":[878,250,360,260]}
+{"kind":"textbox","id":"sh/k3q5o7qp","slide":5,"text":"03","textPreview":"03","textChars":2,"textLines":1,"bbox":[906,278,70,34]}
+{"kind":"textbox","id":"sh/vixczed8","slide":5,"text":"Export","textPreview":"Export","textChars":6,"textLines":1,"bbox":[906,342,270,48]}
+{"kind":"textbox","id":"sh/2x4nap4r","slide":5,"text":"Send approved knowledge to agents and the Company Brain.","textPreview":"Send approved knowledge to agents and the Company Brain.","textChars":56,"textLines":1,"bbox":[906,416,290,70]}
+{"kind":"textbox","id":"sh/dcbulwva","slide":5,"text":"05","textPreview":"05","textChars":2,"textLines":1,"bbox":[1168,656,70,26]}
+{"kind":"notes","id":"nt/1ng7w5","slide":5,"text":""}
+{"kind":"slide","id":"sl/ne1tsk","slide":6,"title":"Demo","textShapes":6}
+{"kind":"textbox","id":"sh/s72x4nap","slide":6,"text":"Demo","textPreview":"Demo","textChars":4,"textLines":1,"bbox":[42,38,320,60]}
+{"kind":"textbox","id":"sh/3m94fu18","slide":6,"text":"Messy enterprise document -> reviewed knowledge asset","textPreview":"Messy enterprise document -> reviewed knowledge asset","textChars":53,"textLines":1,"bbox":[42,104,840,44]}
+{"kind":"shape","id":"sh/a5gbq1or","slide":6,"bbox":[82,184,1116,420]}
+{"kind":"textbox","id":"sh/h4byhgn2","slide":6,"text":">","textPreview":">","textChars":1,"textLines":1,"bbox":[580,304,120,120]}
+{"kind":"textbox","id":"sh/sji5snel","slide":6,"text":"Insert demo video here","textPreview":"Insert demo video here","textChars":22,"textLines":1,"bbox":[420,460,440,42]}
+{"kind":"textbox","id":"sh/3ylc7u54","slide":6,"text":"Show the correction moment: original diagram beside generated output, then a human fixes the meaning.","textPreview":"Show the correction moment: original diagram beside generated output, then a human fixes the meaning.","textChars":101,"textLines":1,"bbox":[176,624,928,42]}
+{"kind":"textbox","id":"sh/adsji5sn","slide":6,"text":"06","textPreview":"06","textChars":2,"textLines":1,"bbox":[1168,656,70,26]}
+{"kind":"notes","id":"nt/ne1tsk","slide":6,"text":""}
+{"kind":"slide","id":"sl/66759y","slide":7,"title":"Docutor is the intake layer for the Company Brain.","textShapes":12}
+{"kind":"textbox","id":"sh/knih4byh","slide":7,"text":"Docutor is the intake layer for the Company Brain.","textPreview":"Docutor is the intake layer for the Company Brain.","textChars":50,"textLines":1,"bbox":[42,36,1060,118]}
+{"kind":"textbox","id":"sh/v6psfil0","slide":7,"text":"Fragmented internal knowledge becomes structured, reviewed, and ready for AI execution.","textPreview":"Fragmented internal knowledge becomes structured, reviewed, and ready for AI execution.","textChars":87,"textLines":1,"bbox":[42,154,820,52]}
+{"kind":"shape","id":"sh/2lszqtcj","slide":7,"bbox":[42,265,300,180]}
+{"kind":"textbox","id":"sh/d0z61032","slide":7,"text":"Fragmented knowledge","textPreview":"Fragmented knowledge","textChars":20,"textLines":1,"bbox":[72,303,240,38]}
+{"kind":"textbox","id":"sh/kf6dcbul","slide":7,"text":"PPT, Word, PDF, tables, diagrams, approvals","textPreview":"PPT, Word, PDF, tables, diagrams, approvals","textChars":43,"textLines":1,"bbox":[72,359,220,60]}
+{"kind":"textbox","id":"sh/vu9knih4","slide":7,"text":">","textPreview":">","textChars":1,"textLines":1,"bbox":[375,317,48,72]}
+{"kind":"shape","id":"sh/29gr2p8n","slide":7,"bbox":[452,265,375,180]}
+{"kind":"textbox","id":"sh/donyd0z6","slide":7,"text":"Docutor review layer","textPreview":"Docutor review layer","textChars":20,"textLines":1,"bbox":[482,303,310,38]}
+{"kind":"textbox","id":"sh/k3q5o7qp","slide":7,"text":"Convert, compare, correct, approve, refresh","textPreview":"Convert, compare, correct, approve, refresh","textChars":43,"textLines":1,"bbox":[482,359,298,60]}
+{"kind":"textbox","id":"sh/at47y1kr","slide":7,"text":">","textPreview":">","textChars":1,"textLines":1,"bbox":[846,317,48,72]}
+{"kind":"shape","id":"sh/3ex0nuxc","slide":7,"bbox":[922,265,316,180]}
+{"kind":"textbox","id":"sh/szqtcj6t","slide":7,"text":"AI execution layer","textPreview":"AI execution layer","textChars":18,"textLines":1,"bbox":[952,303,256,38]}
+{"kind":"textbox","id":"sh/lkjm1cfa","slide":7,"text":"Hermes Agents, internal copilots, workflow agents","textPreview":"Hermes Agents, internal copilots, workflow agents","textChars":49,"textLines":1,"bbox":[952,359,230,60]}
+{"kind":"textbox","id":"sh/ahoza1gv","slide":7,"text":"This is how Docutor picks up the Company Brain idea: structure knowledge first, then let agents act.","textPreview":"This is how Docutor picks up the Company Brain idea: structure knowledge first, then let agents act.","textChars":100,"textLines":1,"bbox":[222,520,836,60]}
+{"kind":"textbox","id":"sh/32lszqtc","slide":7,"text":"07","textPreview":"07","textChars":2,"textLines":1,"bbox":[1168,656,70,26]}
+{"kind":"notes","id":"nt/66759y","slide":7,"text":""}
+{"kind":"slide","id":"sl/q3ur3b","slide":8,"title":"Do not wait for the perfect model.","textShapes":6}
+{"kind":"textbox","id":"sh/8v6psfil","slide":8,"text":"Do not wait for the perfect model.","textPreview":"Do not wait for the perfect model.","textChars":34,"textLines":1,"bbox":[42,74,900,84]}
+{"kind":"textbox","id":"sh/fa9w3m94","slide":8,"text":"Make today's models useful with the right review layer.","textPreview":"Make today's models useful with the right review layer.","textChars":55,"textLines":1,"bbox":[42,166,900,70]}
+{"kind":"shape","id":"sh/qpg3ex0n","slide":8,"bbox":[42,292,1196,1]}
+{"kind":"textbox","id":"sh/x4nap4r6","slide":8,"text":"Docutor creates the missing bridge:","textPreview":"Docutor creates the missing bridge:","textChars":35,"textLines":1,"bbox":[42,352,460,40]}
+{"kind":"textbox","id":"sh/8jqh0fep","slide":8,"text":"fragmented enterprise knowledge -> reviewed Company Brain -> safer agentic work","textPreview":"fragmented enterprise knowledge -> reviewed Company Brain -> safer agentic work","textChars":79,"textLines":1,"bbox":[42,408,1020,58]}
+{"kind":"shape","id":"sh/fyxobm58","slide":8,"bbox":[42,545,500,48]}
+{"kind":"textbox","id":"sh/qd4vmtwr","slide":8,"text":"Build the knowledge layer before scaling the agents","textPreview":"Build the knowledge layer before scaling the agents","textChars":51,"textLines":1,"bbox":[56,552,472,36]}
+{"kind":"textbox","id":"sh/xs72x4na","slide":8,"text":"08","textPreview":"08","textChars":2,"textLines":1,"bbox":[1168,656,70,26]}
+{"kind":"notes","id":"nt/q3ur3b","slide":8,"text":""}
