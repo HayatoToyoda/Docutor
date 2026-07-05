@@ -1,9 +1,8 @@
 import { spawn } from "node:child_process";
 import path from "node:path";
 import type { PythonWorkerResult, StoredDocumentJob } from "@/lib/types";
-import { documentDir } from "./storage";
 
-const WORKER_PATH = path.join(process.cwd(), "workers", "python", "worker.py");
+const WORKER_PATH = path.join("workers", "python", "worker.py");
 
 export class PythonWorkerError extends Error {
   constructor(message: string) {
@@ -16,7 +15,7 @@ export async function runPythonWorker(
   job: StoredDocumentJob,
 ): Promise<PythonWorkerResult> {
   const pythonBin = process.env.DOCUTOR_PYTHON_BIN ?? "python3";
-  const outputDir = path.join(documentDir(job.id), "normalized");
+  const outputDir = path.join(path.dirname(job.originalPath), "normalized");
 
   const args = [
     WORKER_PATH,
@@ -34,7 +33,6 @@ export async function runPythonWorker(
 
   return new Promise((resolve, reject) => {
     const child = spawn(pythonBin, args, {
-      cwd: process.cwd(),
       stdio: ["ignore", "pipe", "pipe"],
     });
 

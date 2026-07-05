@@ -27,7 +27,7 @@ Team execution rule:
 - [x] Implement DOCX native extraction plus LibreOffice PDF/page rendering.
 - [x] Implement PPTX extraction plus LibreOffice PDF/slide rendering.
 - [x] Add OpenAI provider, structured output schema, and conversion prompts.
-- [ ] Wire upload-to-real-conversion flow.
+- [x] Wire upload-to-real-conversion flow.
 - [ ] Build review screen with section list, Markdown editor/preview, accept/reject.
 - [ ] Add Mermaid editor and preview.
 - [ ] Add `DiagramIR` to Mermaid/draw.io generation.
