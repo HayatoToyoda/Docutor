@@ -1,23 +1,52 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { FormEvent, useState } from "react";
-
-const stages = [
-  { label: "Upload", detail: "Add a PowerPoint, Word, or PDF source file" },
-  { label: "Convert", detail: "Run extraction plus LLM/VLM conversion" },
-  { label: "Review", detail: "Edit Markdown and approve each section" },
-  { label: "Export", detail: "Complete the document and download assets" },
-];
+import {
+  ChangeEvent,
+  DragEvent,
+  FormEvent,
+  useRef,
+  useState,
+} from "react";
+import { AppHeader } from "@/app/components/app-header";
 
 type Provider = "openai" | "mock";
 
+function formatBytes(bytes: number) {
+  if (bytes < 1024 * 1024) {
+    return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  }
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 export default function Home() {
   const router = useRouter();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [provider, setProvider] = useState<Provider>("openai");
   const [isConverting, setIsConverting] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [progress, setProgress] = useState(0);
+
+  function chooseFile(nextFile?: File) {
+    if (!nextFile) {
+      return;
+    }
+    setFile(nextFile);
+    setMessage(null);
+    setProgress(0);
+  }
+
+  function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
+    chooseFile(event.target.files?.[0]);
+  }
+
+  function handleDrop(event: DragEvent<HTMLButtonElement>) {
+    event.preventDefault();
+    setIsDragging(false);
+    chooseFile(event.dataTransfer.files?.[0]);
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -28,7 +57,8 @@ export default function Home() {
     }
 
     setIsConverting(true);
-    setMessage("Uploading document...");
+    setProgress(24);
+    setMessage("Uploading source document...");
 
     try {
       const formData = new FormData();
@@ -45,7 +75,8 @@ export default function Home() {
       }
 
       const documentId = uploadPayload.document.id as string;
-      setMessage("Running conversion...");
+      setProgress(68);
+      setMessage("Extracting text, tables, and diagrams...");
 
       const convertResponse = await fetch(
         `/api/documents/${documentId}/convert?provider=${provider}`,
@@ -57,8 +88,11 @@ export default function Home() {
         throw new Error(convertPayload.error ?? "Conversion failed.");
       }
 
+      setProgress(100);
+      setMessage("Review workspace is ready.");
       router.push(`/review/${documentId}`);
     } catch (error) {
+      setProgress(0);
       setMessage(error instanceof Error ? error.message : "Conversion failed.");
     } finally {
       setIsConverting(false);
@@ -66,94 +100,145 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 text-slate-950">
-      <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
+    <main className="flex min-h-screen flex-col bg-[#f6f6f8] text-[#1b1d22]">
+      <AppHeader activeStep="upload" />
+
+      <section className="flex flex-1 justify-center px-5 py-10 sm:py-16">
+        <form className="w-full max-w-[620px]" onSubmit={handleSubmit}>
           <div>
-            <p className="text-sm font-semibold tracking-wide text-slate-500">
-              Docutor
+            <h1 className="text-[26px] font-semibold leading-tight">
+              Convert a document
+            </h1>
+            <p className="mt-2 max-w-[590px] text-sm leading-6 text-[#6b6f7b]">
+              Upload a PowerPoint, Word, or PDF file. Docutor extracts text,
+              tables, and diagrams, then converts them into structured Markdown
+              you can review section by section.
             </p>
-            <h1 className="text-xl font-semibold">Document conversion review</h1>
           </div>
-          <div className="rounded border border-slate-200 px-3 py-1 text-sm text-slate-600">
-            Real conversion MVP
-          </div>
-        </div>
-      </header>
 
-      <section className="mx-auto grid max-w-7xl gap-8 px-6 py-10 lg:grid-cols-[0.95fr_1.05fr]">
-        <div>
-          <p className="mb-3 text-sm font-medium uppercase text-cyan-700">
-            Agent-readable knowledge assets
-          </p>
-          <h2 className="max-w-3xl text-4xl font-semibold leading-tight text-slate-950">
-            Convert messy enterprise documents into structured Markdown with
-            human review.
-          </h2>
-          <p className="mt-5 max-w-2xl text-base leading-7 text-slate-600">
-            Upload source documents, run extraction and LLM/VLM conversion, then
-            approve every generated section before export.
-          </p>
-
-          <div className="mt-8 space-y-4">
-            {stages.map((stage, index) => (
-              <div className="flex gap-4" key={stage.label}>
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-cyan-700 text-sm font-semibold text-white">
-                  {index + 1}
-                </div>
-                <div>
-                  <p className="font-medium text-slate-900">{stage.label}</p>
-                  <p className="text-sm leading-6 text-slate-600">
-                    {stage.detail}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <form
-          className="rounded border border-slate-200 bg-white p-5 shadow-sm"
-          onSubmit={handleSubmit}
-        >
-          <h3 className="text-base font-semibold">Upload document</h3>
-
-          <label className="mt-5 block">
-            <span className="text-sm font-medium text-slate-700">
-              Source file
-            </span>
-            <input
-              accept=".pdf,.docx,.pptx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.presentationml.presentation"
-              className="mt-2 block w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm file:mr-4 file:rounded file:border-0 file:bg-slate-900 file:px-3 file:py-2 file:text-sm file:font-medium file:text-white"
-              onChange={(event) => setFile(event.target.files?.[0] ?? null)}
-              type="file"
-            />
-          </label>
-
-          <label className="mt-5 block">
-            <span className="text-sm font-medium text-slate-700">
-              Conversion provider
-            </span>
-            <select
-              className="mt-2 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm"
-              onChange={(event) => setProvider(event.target.value as Provider)}
-              value={provider}
-            >
-              <option value="openai">OpenAI real conversion</option>
-              <option value="mock">Mock fallback</option>
-            </select>
-          </label>
+          <input
+            accept=".pdf,.docx,.pptx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+            className="sr-only"
+            onChange={handleFileChange}
+            ref={fileInputRef}
+            type="file"
+          />
 
           <button
-            className="mt-6 w-full rounded bg-cyan-700 px-4 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300"
-            disabled={isConverting}
-            type="submit"
+            className={`mt-6 flex w-full flex-col items-center rounded-xl border-[1.5px] border-dashed bg-white px-6 py-9 text-center transition ${
+              isDragging
+                ? "border-[#4c5fd5] bg-[#fbfbfe]"
+                : "border-[#d3d5dc] hover:border-[#4c5fd5]"
+            }`}
+            onClick={() => fileInputRef.current?.click()}
+            onDragEnter={() => setIsDragging(true)}
+            onDragLeave={() => setIsDragging(false)}
+            onDragOver={(event) => event.preventDefault()}
+            onDrop={handleDrop}
+            type="button"
           >
-            {isConverting ? "Converting..." : "Convert document"}
+            <span className="flex h-11 w-11 items-center justify-center rounded-[10px] bg-[#eef0fc] text-xl font-semibold text-[#4c5fd5]">
+              ↑
+            </span>
+            <span className="mt-3 text-sm font-medium">
+              Drop a file here, or click to browse
+            </span>
+            <span className="mt-1 text-xs text-[#8b8f9a]">
+              .pptx · .docx · .pdf — max 50 MB
+            </span>
           </button>
 
-          {message ? (
-            <p className="mt-4 rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+          {file ? (
+            <div className="mt-5 overflow-hidden rounded-[10px] border border-[#e5e6ea] bg-white">
+              <div className="flex items-center gap-3 p-4">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#eef0fc] text-[10px] font-bold text-[#4c5fd5]">
+                  {file.name.split(".").pop()?.toUpperCase() ?? "DOC"}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold">{file.name}</p>
+                  <p className="mt-0.5 text-xs text-[#8b8f9a]">
+                    {formatBytes(file.size)}
+                  </p>
+                </div>
+                <span className="flex items-center gap-1.5 text-xs font-medium text-[#2e9e6b]">
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#e6f4ec]">
+                    ✓
+                  </span>
+                  Ready
+                </span>
+                <button
+                  aria-label="Remove selected file"
+                  className="px-1 text-lg text-[#8b8f9a] hover:text-[#c4554d]"
+                  onClick={() => {
+                    setFile(null);
+                    setMessage(null);
+                    if (fileInputRef.current) {
+                      fileInputRef.current.value = "";
+                    }
+                  }}
+                  type="button"
+                >
+                  ×
+                </button>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3 border-t border-[#f0f1f4] px-4 py-3">
+                <span className="text-xs font-medium text-[#6b6f7b]">
+                  Conversion mode
+                </span>
+                <div className="flex rounded-md bg-[#f0f1f4] p-0.5">
+                  {(["openai", "mock"] as Provider[]).map((option) => (
+                    <button
+                      className={`rounded-[5px] px-3 py-1 text-xs font-medium ${
+                        provider === option
+                          ? "bg-white text-[#1b1d22] shadow-sm"
+                          : "text-[#6b6f7b]"
+                      }`}
+                      key={option}
+                      onClick={() => setProvider(option)}
+                      type="button"
+                    >
+                      {option === "openai" ? "OpenAI" : "Mock"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {isConverting ? (
+                <div className="border-t border-[#f0f1f4] px-4 py-4">
+                  <div className="flex items-center justify-between gap-4 text-xs">
+                    <span className="font-medium">{message}</span>
+                    <span className="text-[#4c5fd5]">{progress}%</span>
+                  </div>
+                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[#eceef5]">
+                    <div
+                      className="h-full rounded-full bg-[#4c5fd5] transition-all duration-500"
+                      style={{ width: `${progress}%` }}
+                    />
+                  </div>
+                </div>
+              ) : null}
+
+              <div className="border-t border-[#f0f1f4] p-4">
+                <button
+                  className="w-full rounded-lg bg-[#4c5fd5] px-4 py-3 text-sm font-semibold text-white hover:bg-[#3f51c0] disabled:cursor-not-allowed disabled:bg-[#aeb5df]"
+                  disabled={isConverting}
+                  type="submit"
+                >
+                  {isConverting ? "Converting document..." : "Convert document →"}
+                </button>
+              </div>
+            </div>
+          ) : null}
+
+          {message && !isConverting ? (
+            <p
+              className={`mt-4 rounded-lg border px-3 py-2.5 text-sm ${
+                progress === 100
+                  ? "border-[#c9e7d7] bg-[#f2faf6] text-[#247c55]"
+                  : "border-[#f3d6d3] bg-[#fdf3f2] text-[#a4453d]"
+              }`}
+            >
               {message}
             </p>
           ) : null}
