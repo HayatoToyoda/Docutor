@@ -14,6 +14,57 @@ Docutor is not intended to be a simple OCR or file conversion tool. The goal is
 to transform unstructured business documents into structured knowledge assets
 that both humans and AI agents can inspect, correct, and use.
 
+## Getting Started
+
+### Prerequisites
+
+- **Node.js >= 22.13** — the repo pins `22.22.0` in `.nvmrc`; run `nvm use` if you use nvm.
+- **pnpm 11.7.0**, managed via Corepack (bundled with Node). Run `corepack enable` once if `pnpm` isn't resolving to the pinned version.
+- **Python 3** with `pdfplumber` and `Pillow` for document extraction:
+
+  ```bash
+  pip install pdfplumber Pillow
+  ```
+
+- **Poppler utilities** (`pdftoppm`, `pdfinfo`, `pdftotext`) for PDF text and page-image extraction:
+
+  ```bash
+  brew install poppler   # macOS
+  ```
+
+- **LibreOffice** (`soffice` on your `PATH`) for rendering DOCX/PPTX pages to images:
+
+  ```bash
+  brew install --cask libreoffice   # macOS
+  ```
+
+- An **OpenAI API key** if you want real conversions — the `mock` provider works without one.
+
+### Setup
+
+```bash
+git clone https://github.com/EitaroY/Docutor.git
+cd Docutor
+nvm use              # optional, matches the Node version pinned in .nvmrc
+pnpm install
+cp sample.env.local .env.local
+```
+
+Open `.env.local` and set `OPENAI_API_KEY` (or leave `DOCUTOR_LLM_PROVIDER=mock` to run without one).
+
+```bash
+pnpm dev
+```
+
+Then open [http://localhost:3000](http://localhost:3000).
+
+### Useful scripts
+
+- `pnpm dev` — start the Next.js dev server
+- `pnpm build` — production build
+- `pnpm lint` — run ESLint
+- `pnpm test` — run the Vitest unit test suite
+
 ## Core Product Flow
 
 1. Upload a PowerPoint, Word, PDF, or diagram-heavy business document.

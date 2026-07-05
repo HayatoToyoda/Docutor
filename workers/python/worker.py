@@ -23,7 +23,14 @@ from typing import Literal, Optional
 from uuid import uuid4
 from xml.etree import ElementTree
 
-SourceFileType = Literal["pdf", "docx", "pptx"]
+SourceFileType = Literal["pdf", "docx", "pptx", "image"]
+
+IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg"}
+IMAGE_MIME_TYPES = {
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+}
 
 WORD_NS = {
     "w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main",
@@ -80,7 +87,7 @@ def utc_now() -> str:
 
 
 def detect_file_type(path: Path, explicit_type: Optional[str]) -> SourceFileType:
-    if explicit_type in {"pdf", "docx", "pptx"}:
+    if explicit_type in {"pdf", "docx", "pptx", "image"}:
         return explicit_type  # type: ignore[return-value]
 
     suffix = path.suffix.lower()
@@ -90,8 +97,10 @@ def detect_file_type(path: Path, explicit_type: Optional[str]) -> SourceFileType
         return "docx"
     if suffix == ".pptx":
         return "pptx"
+    if suffix in IMAGE_EXTENSIONS:
+        return "image"
 
-    raise ValueError("Unsupported file type. Expected PDF, DOCX, or PPTX.")
+    raise ValueError("Unsupported file type. Expected PDF, DOCX, PPTX, PNG, or JPG.")
 
 
 def run_command(args: list[str]) -> subprocess.CompletedProcess[str]:
@@ -598,6 +607,51 @@ def normalize_pdf_document(
     )
 
 
+def normalize_image_document(
+    input_path: Path,
+    output_dir: Path,
+    document_id: str,
+    source_file_name: Optional[str],
+) -> NormalizedDocument:
+    assets_dir = output_dir / "assets"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    assets_dir.mkdir(parents=True, exist_ok=True)
+
+    suffix = input_path.suffix.lower()
+    mime_type = IMAGE_MIME_TYPES.get(suffix, "image/png")
+    image_path = assets_dir / f"page-001{suffix}"
+    shutil.copyfile(input_path, image_path)
+
+    width, height = image_size(image_path)
+    asset = NormalizedAsset(
+        id=f"asset_{uuid4().hex}",
+        kind="page-image",
+        path=str(image_path),
+        mimeType=mime_type,
+        sourcePage=1,
+        width=width,
+        height=height,
+    )
+
+    page = NormalizedPage(
+        pageNumber=1,
+        text="",
+        markdownTables=[],
+        imagePath=str(image_path),
+        assets=[asset],
+    )
+
+    return NormalizedDocument(
+        id=document_id,
+        sourceFileName=source_file_name or input_path.name,
+        fileType="image",
+        createdAt=utc_now(),
+        pages=[page],
+        assets=[asset],
+        warnings=[],
+    )
+
+
 def normalize_document(
     input_path: Path,
     output_dir: Path,
@@ -621,6 +675,13 @@ def normalize_document(
         )
     if file_type == "pptx":
         return normalize_pptx_document(
+            input_path=input_path,
+            output_dir=output_dir,
+            document_id=document_id,
+            source_file_name=source_file_name,
+        )
+    if file_type == "image":
+        return normalize_image_document(
             input_path=input_path,
             output_dir=output_dir,
             document_id=document_id,
@@ -666,7 +727,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--output-dir", required=True, help="Directory for extracted assets.")
     parser.add_argument("--document-id", required=True, help="Stable Docutor document id.")
     parser.add_argument("--source-file-name", help="Original uploaded file name.")
-    parser.add_argument("--file-type", choices=["pdf", "docx", "pptx"], help="Source file type override.")
+    parser.add_argument(
+        "--file-type",
+        choices=["pdf", "docx", "pptx", "image"],
+        help="Source file type override.",
+    )
     return parser
 
 

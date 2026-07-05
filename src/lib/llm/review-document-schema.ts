@@ -64,7 +64,11 @@ const diagramSectionSchema = reviewSectionBaseSchema.extend({
   sourceImage: z.string(),
   format: z.enum(["mermaid", "drawio"]),
   diagramIR: diagramIRSchema.nullable(),
-  generatedCode: z.string(),
+  generatedCode: z
+    .string()
+    .describe(
+      "Raw Mermaid or draw.io source for this diagram. Do not wrap it in markdown code fences (no ``` lines).",
+    ),
   drawioXml: z.string().nullable(),
 });
 
@@ -77,7 +81,7 @@ export const reviewDocumentSchema = z.object({
   id: z.string(),
   title: z.string(),
   sourceFileName: z.string(),
-  sourceFileType: z.enum(["pdf", "docx", "pptx"]),
+  sourceFileType: z.enum(["pdf", "docx", "pptx", "image"]),
   createdAt: z.string(),
   updatedAt: z.string(),
   sections: z.array(reviewSectionSchema),

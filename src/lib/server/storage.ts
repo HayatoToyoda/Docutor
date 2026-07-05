@@ -43,7 +43,7 @@ export async function createDocumentJob(input: {
   const now = new Date().toISOString();
   const originalPath = path.join(
     dir,
-    `original${sourceFileExtension(sourceFileType)}`,
+    `original${sourceFileExtension(input.sourceFileName)}`,
   );
 
   await writeFile(originalPath, input.data);

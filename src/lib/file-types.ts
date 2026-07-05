@@ -7,12 +7,17 @@ const MIME_TYPES: Record<string, SourceFileType> = {
     "docx",
   "application/vnd.openxmlformats-officedocument.presentationml.presentation":
     "pptx",
+  "image/png": "image",
+  "image/jpeg": "image",
 };
 
 const EXTENSIONS: Record<string, SourceFileType> = {
   ".pdf": "pdf",
   ".docx": "docx",
   ".pptx": "pptx",
+  ".png": "image",
+  ".jpg": "image",
+  ".jpeg": "image",
 };
 
 export function detectSourceFileType(
@@ -26,8 +31,8 @@ export function detectSourceFileType(
   return EXTENSIONS[path.extname(fileName).toLowerCase()] ?? null;
 }
 
-export function sourceFileExtension(fileType: SourceFileType): string {
-  return `.${fileType}`;
+export function sourceFileExtension(fileName: string): string {
+  return path.extname(fileName).toLowerCase();
 }
 
 export function isSupportedSourceFile(fileName: string, mimeType?: string) {

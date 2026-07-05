@@ -59,7 +59,7 @@ export default function Home() {
     event.preventDefault();
 
     if (!file) {
-      setMessage("Choose a PDF, DOCX, or PPTX file.");
+      setMessage("Choose a PDF, DOCX, PPTX, PNG, or JPG file.");
       return;
     }
 
@@ -117,14 +117,14 @@ export default function Home() {
               Convert a document
             </h1>
             <p className="mt-2 max-w-[590px] text-sm leading-6 text-[#6b6f7b]">
-              Upload a PowerPoint, Word, or PDF file. Docutor extracts text,
-              tables, and diagrams, then converts them into structured Markdown
-              you can review section by section.
+              Upload a PowerPoint, Word, PDF, or image file. Docutor extracts
+              text, tables, and diagrams, then converts them into structured
+              Markdown you can review section by section.
             </p>
           </div>
 
           <input
-            accept=".pdf,.docx,.pptx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+            accept=".pdf,.docx,.pptx,.png,.jpg,.jpeg,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.presentationml.presentation,image/png,image/jpeg"
             className="sr-only"
             onChange={handleFileChange}
             ref={fileInputRef}
@@ -151,7 +151,7 @@ export default function Home() {
               Drop a file here, or click to browse
             </span>
             <span className="mt-1 text-xs text-[#8b8f9a]">
-              .pptx · .docx · .pdf — max 50 MB
+              .pptx · .docx · .pdf · .png · .jpg — max 50 MB
             </span>
           </button>
 

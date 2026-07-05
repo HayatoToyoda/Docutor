@@ -1,5 +1,11 @@
 import type { DiagramIR, DiagramNode } from "@/lib/types";
 
+export function stripMermaidFence(code: string) {
+  const trimmed = code.trim();
+  const fenced = trimmed.match(/```(?:\w+)?\s*\n?([\s\S]*?)```/);
+  return (fenced ? fenced[1] : trimmed).trim();
+}
+
 function sanitizeId(id: string) {
   const sanitized = id.replace(/[^a-zA-Z0-9_]/g, "_");
   return sanitized || "node";

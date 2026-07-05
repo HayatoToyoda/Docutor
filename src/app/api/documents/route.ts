@@ -22,7 +22,9 @@ export async function POST(request: Request) {
   const sourceFileType = detectSourceFileType(file.name, file.type);
 
   if (!sourceFileType) {
-    return jsonError("Unsupported file type. Upload PDF, DOCX, or PPTX.");
+    return jsonError(
+      "Unsupported file type. Upload PDF, DOCX, PPTX, PNG, or JPG.",
+    );
   }
 
   try {

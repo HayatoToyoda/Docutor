@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   diagramIRToDrawioXml,
   diagramIRToMermaid,
+  stripMermaidFence,
 } from "../../src/lib/diagrams/diagram-ir";
 import type { DiagramIR } from "../../src/lib/types";
 
@@ -38,5 +39,25 @@ describe("DiagramIR converters", () => {
     expect(xml).toContain("Approval flow");
     expect(xml).toContain("Manager approval");
     expect(xml).toContain("edge=\"1\"");
+  });
+});
+
+describe("stripMermaidFence", () => {
+  it("returns raw Mermaid source unchanged", () => {
+    expect(stripMermaidFence("flowchart TD\n  A --> B")).toBe(
+      "flowchart TD\n  A --> B",
+    );
+  });
+
+  it("strips a markdown code fence with a language tag", () => {
+    expect(stripMermaidFence("```mermaid\nflowchart TD\n  A --> B\n```")).toBe(
+      "flowchart TD\n  A --> B",
+    );
+  });
+
+  it("strips a fence even when the model appends trailing prose after it", () => {
+    const code =
+      "```mermaid\ngantt\n  title Plan\n```\nTODO: confirm dates from the source diagram.";
+    expect(stripMermaidFence(code)).toBe("gantt\n  title Plan");
   });
 });

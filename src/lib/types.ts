@@ -1,4 +1,4 @@
-export type SourceFileType = "pdf" | "docx" | "pptx";
+export type SourceFileType = "pdf" | "docx" | "pptx" | "image";
 
 export type DocumentJobStatus =
   | "uploaded"

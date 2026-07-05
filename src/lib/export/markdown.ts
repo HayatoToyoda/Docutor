@@ -1,3 +1,4 @@
+import { stripMermaidFence } from "@/lib/diagrams/diagram-ir";
 import type { ReviewDocument, ReviewSection } from "@/lib/types";
 
 function renderSection(section: ReviewSection) {
@@ -11,7 +12,9 @@ function renderSection(section: ReviewSection) {
     if (section.generatedMarkdown.trim()) {
       blocks.push(section.generatedMarkdown.trim());
     } else if (section.format === "mermaid") {
-      blocks.push(`\`\`\`mermaid\n${section.generatedCode}\n\`\`\``);
+      blocks.push(
+        `\`\`\`mermaid\n${stripMermaidFence(section.generatedCode)}\n\`\`\``,
+      );
     } else {
       blocks.push("TODO: draw.io diagram exported as related asset.");
     }

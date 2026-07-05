@@ -11,6 +11,7 @@ import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { stripMermaidFence } from "@/lib/diagrams/diagram-ir";
 import type {
   DiagramSection,
   ReviewSection,
@@ -80,7 +81,8 @@ function MermaidPreview({ code }: { code: string }) {
     let active = true;
 
     async function renderDiagram() {
-      if (!code.trim()) {
+      const source = stripMermaidFence(code);
+      if (!source) {
         setSvg("");
         setError(null);
         return;
@@ -93,7 +95,7 @@ function MermaidPreview({ code }: { code: string }) {
           theme: "base",
           securityLevel: "strict",
         });
-        const result = await mermaid.render(elementId, code);
+        const result = await mermaid.render(elementId, source);
         if (active) {
           setSvg(result.svg);
           setError(null);
