@@ -9,6 +9,10 @@ import {
   type ReviewSectionOutput,
 } from "@/lib/llm/review-document-schema";
 import {
+  normalizeReviewDocumentOutput,
+  normalizeReviewSectionOutput,
+} from "@/lib/llm/review-document-normalizer";
+import {
   DOCUTOR_SYSTEM_PROMPT,
   buildDocumentConversionPrompt,
   buildSectionRegenerationPrompt,
@@ -70,15 +74,16 @@ function normalizeReviewDocument(
   source: NormalizedDocument,
 ): ReviewDocument {
   const now = new Date().toISOString();
+  const normalized = normalizeReviewDocumentOutput(output);
 
   return {
-    ...output,
+    ...normalized,
     id: source.id,
     sourceFileName: source.sourceFileName,
     sourceFileType: source.fileType,
     createdAt: output.createdAt || now,
     updatedAt: now,
-    sections: output.sections.map((section) => ({
+    sections: normalized.sections.map((section) => ({
       ...section,
       reviewStatus: "pending",
     })),
@@ -91,7 +96,7 @@ function normalizeReviewSection(
   source: ReviewSection,
 ): ReviewSection {
   return {
-    ...output,
+    ...normalizeReviewSectionOutput(output),
     id: source.id,
     type: source.type,
     sourcePage: output.sourcePage || source.sourcePage,
