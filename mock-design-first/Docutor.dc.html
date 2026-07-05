@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <style>
+    html,body{margin:0;padding:0;background:#f6f6f8;}
+    *{box-sizing:border-box;}
+    @keyframes docutorSpin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+    @keyframes docutorPulse{0%,100%{opacity:1}50%{opacity:.35}}
+    textarea:focus,input:focus,select:focus{outline:2px solid #c7cdf1;outline-offset:-1px;}
+  </style>
+</helmet>
+
+<div style="font-family:'IBM Plex Sans',sans-serif;color:#1b1d22;min-height:100vh;display:flex;flex-direction:column;background:#f6f6f8">
+
+  <!-- ===== Header ===== -->
+  <div style="height:56px;background:#ffffff;border-bottom:1px solid #e5e6ea;display:flex;align-items:center;justify-content:space-between;padding:0 20px;flex-shrink:0">
+    <div style="display:flex;align-items:center;gap:10px">
+      <div style="width:28px;height:28px;background:#4c5fd5;border-radius:7px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:15px">D</div>
+      <div style="font-weight:600;font-size:15px;letter-spacing:-0.01em">Docutor</div>
+      <div style="font-size:12px;color:#8b8f9a;border-left:1px solid #e5e6ea;padding-left:10px;margin-left:2px">Documents → agent-readable Markdown</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;font-size:12.5px">
+      <div style="{{ step1Style }}">1&nbsp; Upload</div>
+      <div style="color:#c9ccd4">→</div>
+      <div style="{{ step2Style }}">2&nbsp; Review</div>
+      <div style="color:#c9ccd4">→</div>
+      <div style="{{ step3Style }}">3&nbsp; Export</div>
+    </div>
+  </div>
+
+  <!-- ===== Upload screen ===== -->
+  <sc-if value="{{ isUpload }}" hint-placeholder-val="{{ true }}">
+    <div style="flex:1;display:flex;align-items:flex-start;justify-content:center;padding:64px 24px">
+      <div style="width:620px;max-width:100%;display:flex;flex-direction:column;gap:20px">
+        <div>
+          <div style="font-size:22px;font-weight:600;letter-spacing:-0.02em">Convert a document</div>
+          <div style="font-size:14px;color:#6b6f7b;margin-top:6px;line-height:1.55">Upload a PowerPoint, Word, or PDF file. Docutor extracts text, tables, and diagrams, then converts them into structured Markdown you can review section by section.</div>
+        </div>
+
+        <input type="file" accept=".pptx,.ppt,.docx,.doc,.pdf" ref="{{ setFileInput }}" onChange="{{ onFilePicked }}" style="display:none">
+
+        <div onClick="{{ openFilePicker }}" onDragOver="{{ onDragOver }}" onDragLeave="{{ onDragLeave }}" onDrop="{{ onDrop }}" style="{{ dropzoneStyle }}">
+          <div style="width:44px;height:44px;border-radius:10px;background:#eef0fc;display:flex;align-items:center;justify-content:center;font-size:20px;color:#4c5fd5;font-weight:600">↑</div>
+          <div style="font-size:14.5px;font-weight:500;margin-top:12px">Drop a file here, or click to browse</div>
+          <div style="font-size:12.5px;color:#8b8f9a;margin-top:4px">.pptx · .docx · .pdf — max 50 MB</div>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:#8b8f9a">
+          <div style="flex:1;height:1px;background:#e5e6ea"></div>
+          or
+          <div style="flex:1;height:1px;background:#e5e6ea"></div>
+        </div>
+
+        <button onClick="{{ useSample }}" style="background:#ffffff;border:1px solid #dcdee4;border-radius:8px;padding:12px 16px;font-family:inherit;font-size:13.5px;color:#1b1d22;cursor:pointer;display:flex;align-items:center;gap:10px;text-align:left" style-hover="border-color:#4c5fd5;background:#fbfbfe">
+          <span style="font-size:16px">📄</span>
+          <span><span style="font-weight:600">Try the sample document</span> — 稟議規程_第3版.docx (Internal Ringi Approval Rules)</span>
+        </button>
+
+        <sc-if value="{{ hasFile }}" hint-placeholder-val="{{ false }}">
+          <div style="background:#ffffff;border:1px solid #e5e6ea;border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:14px">
+            <div style="display:flex;align-items:center;gap:12px">
+              <div style="width:38px;height:38px;border-radius:8px;background:#eef0fc;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#4c5fd5">{{ fileExt }}</div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:13.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ fileName }}</div>
+                <div style="font-size:12px;color:#8b8f9a;margin-top:2px">{{ fileSize }}</div>
+              </div>
+              <button onClick="{{ clearFile }}" style="background:none;border:none;color:#8b8f9a;cursor:pointer;font-size:16px;padding:4px" style-hover="color:#c4554d">✕</button>
+            </div>
+
+            <div style="display:flex;align-items:center;gap:12px;border-top:1px solid #f0f1f4;padding-top:14px">
+              <div style="font-size:12.5px;color:#6b6f7b;font-weight:500">Conversion mode</div>
+              <div style="display:flex;background:#f0f1f4;border-radius:7px;padding:2px">
+                <button onClick="{{ setModeMock }}" style="{{ mockBtnStyle }}">Mock</button>
+                <button onClick="{{ setModeReal }}" style="{{ realBtnStyle }}">Real LLM</button>
+              </div>
+              <sc-if value="{{ isRealMode }}" hint-placeholder-val="{{ false }}">
+                <select style="font-family:inherit;font-size:12.5px;border:1px solid #dcdee4;border-radius:6px;padding:5px 8px;color:#1b1d22;background:#fff">
+                  <option>Anthropic</option>
+                  <option>OpenAI</option>
+                  <option>Gemini</option>
+                </select>
+              </sc-if>
+            </div>
+            <sc-if value="{{ isRealMode }}" hint-placeholder-val="{{ false }}">
+              <div style="font-size:12px;color:#8a5a12;background:#fdf6e8;border:1px solid #f3e3bd;border-radius:7px;padding:9px 12px;line-height:1.5">Real mode is stubbed in this MVP. Providers plug in behind a common ConversionProvider interface — no API key configured, so the mock pipeline will run.</div>
+            </sc-if>
+
+            <button onClick="{{ startConversion }}" style="background:#4c5fd5;color:#fff;border:none;border-radius:8px;padding:12px;font-family:inherit;font-size:14px;font-weight:600;cursor:pointer" style-hover="background:#3f51c0">Convert document →</button>
+          </div>
+        </sc-if>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- ===== Processing screen ===== -->
+  <sc-if value="{{ isProcessing }}" hint-placeholder-val="{{ false }}">
+    <div style="flex:1;display:flex;align-items:flex-start;justify-content:center;padding:96px 24px">
+      <div style="width:460px;max-width:100%;background:#ffffff;border:1px solid #e5e6ea;border-radius:12px;padding:28px">
+        <div style="display:flex;align-items:center;gap:12px">
+          <div style="width:22px;height:22px;border:2.5px solid #e5e6ea;border-top-color:#4c5fd5;border-radius:50%;animation:docutorSpin .8s linear infinite"></div>
+          <div style="font-size:15.5px;font-weight:600">Converting {{ fileName }}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:2px;margin-top:20px">
+          <sc-for list="{{ procItems }}" as="p" hint-placeholder-count="5">
+            <div style="display:flex;align-items:center;gap:10px;padding:8px 4px;font-size:13.5px">
+              <div style="{{ p.iconStyle }}">{{ p.icon }}</div>
+              <div style="{{ p.textStyle }}">{{ p.label }}</div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- ===== Review screen ===== -->
+  <sc-if value="{{ isReview }}" hint-placeholder-val="{{ false }}">
+    <div style="flex:1;display:grid;grid-template-columns:292px 1fr;min-height:0;height:calc(100vh - 56px)">
+
+      <!-- Sidebar -->
+      <div style="background:#ffffff;border-right:1px solid #e5e6ea;display:flex;flex-direction:column;min-height:0">
+        <div style="padding:16px 16px 12px;border-bottom:1px solid #f0f1f4">
+          <div style="font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ fileName }}</div>
+          <div style="font-size:11.5px;color:#8b8f9a;margin-top:3px">{{ sectionCount }} sections · {{ acceptedCount }} accepted</div>
+          <div style="height:4px;background:#f0f1f4;border-radius:2px;margin-top:10px;overflow:hidden">
+            <div style="{{ progressBarStyle }}"></div>
+          </div>
+        </div>
+        <div style="flex:1;overflow-y:auto;padding:8px">
+          <sc-for list="{{ sideItems }}" as="it" hint-placeholder-count="6">
+            <div onClick="{{ it.onSelect }}" style="{{ it.rowStyle }}" style-hover="background:#f3f4f8">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+                <div style="{{ it.typeBadgeStyle }}">{{ it.typeLabel }}</div>
+                <div style="{{ it.dotStyle }}"></div>
+              </div>
+              <div style="font-size:13px;font-weight:500;margin-top:6px;line-height:1.35">{{ it.title }}</div>
+              <div style="font-size:11px;color:#9aa0ab;margin-top:3px">{{ it.meta }}</div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <!-- Main -->
+      <div style="display:flex;flex-direction:column;min-height:0;min-width:0">
+        <div style="flex:1;overflow-y:auto;padding:24px 28px;min-height:0">
+          <div style="max-width:1060px;margin:0 auto;display:flex;flex-direction:column;gap:16px">
+
+            <!-- Section header + actions -->
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
+              <div>
+                <div style="display:flex;align-items:center;gap:8px">
+                  <div style="{{ selTypeBadgeStyle }}">{{ selTypeLabel }}</div>
+                  <div style="{{ selStatusBadgeStyle }}">{{ selStatusLabel }}</div>
+                </div>
+                <div style="font-size:19px;font-weight:600;letter-spacing:-0.01em;margin-top:8px">{{ selTitle }}</div>
+                <div style="font-size:12.5px;color:#8b8f9a;margin-top:3px">Source: {{ selPage }}</div>
+              </div>
+              <div style="display:flex;gap:8px">
+                <button onClick="{{ regenerate }}" style="{{ regenBtnStyle }}">{{ regenLabel }}</button>
+                <button onClick="{{ rejectSection }}" style="background:#fff;border:1px solid #dcdee4;color:#c4554d;border-radius:7px;padding:8px 14px;font-family:inherit;font-size:13px;font-weight:500;cursor:pointer" style-hover="border-color:#c4554d;background:#fdf7f6">Reject</button>
+                <button onClick="{{ acceptSection }}" style="background:#2e9e6b;border:1px solid #2e9e6b;color:#fff;border-radius:7px;padding:8px 16px;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer" style-hover="background:#27875b">✓ Accept</button>
+              </div>
+            </div>
+
+            <!-- Diagram section -->
+            <sc-if value="{{ isDiagram }}" hint-placeholder-val="{{ false }}">
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+                <div style="background:#ffffff;border:1px solid #e5e6ea;border-radius:10px;overflow:hidden;display:flex;flex-direction:column">
+                  <div style="padding:10px 14px;border-bottom:1px solid #f0f1f4;font-size:12px;font-weight:600;color:#6b6f7b;letter-spacing:.04em">ORIGINAL CAPTURE — {{ selPage }}</div>
+                  <div style="flex:1;padding:12px;display:flex;align-items:center;justify-content:center;background:#fafafb;min-height:360px">
+                    <img src="assets/original-diagram.png" style="max-width:100%;max-height:420px;border:1px solid #ececef;border-radius:4px;box-shadow:0 1px 3px rgba(20,22,40,.06)">
+                  </div>
+                </div>
+                <div style="background:#ffffff;border:1px solid #e5e6ea;border-radius:10px;overflow:hidden;display:flex;flex-direction:column">
+                  <div style="padding:10px 14px;border-bottom:1px solid #f0f1f4;display:flex;align-items:center;justify-content:space-between">
+                    <div style="font-size:12px;font-weight:600;color:#6b6f7b;letter-spacing:.04em">GENERATED PREVIEW</div>
+                    <div style="font-size:11.5px;color:#9aa0ab">{{ mermaidStatus }}</div>
+                  </div>
+                  <div style="flex:1;padding:12px;display:flex;align-items:center;justify-content:center;min-height:360px;overflow:auto">
+                    <div ref="{{ setMermaidHost }}" style="max-width:100%"></div>
+                  </div>
+                </div>
+              </div>
+
+              <div style="background:#ffffff;border:1px solid #e5e6ea;border-radius:10px;overflow:hidden">
+                <div style="padding:10px 14px;border-bottom:1px solid #f0f1f4;display:flex;align-items:center;justify-content:space-between;gap:12px">
+                  <div style="font-size:12px;font-weight:600;color:#6b6f7b;letter-spacing:.04em">DIAGRAM SOURCE</div>
+                  <div style="display:flex;align-items:center;gap:8px">
+                    <div style="font-size:12px;color:#8b8f9a">Format</div>
+                    <select value="{{ diagFormat }}" onChange="{{ onFormatChange }}" style="font-family:inherit;font-size:12.5px;border:1px solid #dcdee4;border-radius:6px;padding:4px 8px;background:#fff;color:#1b1d22">
+                      <option value="mermaid">Mermaid</option>
+                      <option value="drawio">draw.io</option>
+                    </select>
+                  </div>
+                </div>
+                <sc-if value="{{ isMermaidFormat }}" hint-placeholder-val="{{ true }}">
+                  <textarea value="{{ diagCode }}" onChange="{{ onCodeChange }}" spellCheck="{{ false }}" style="width:100%;height:230px;border:none;resize:vertical;padding:14px 16px;font-family:'IBM Plex Mono',monospace;font-size:12.5px;line-height:1.6;color:#1b1d22;background:#fcfcfd;display:block"></textarea>
+                  <sc-if value="{{ hasMermaidError }}" hint-placeholder-val="{{ false }}">
+                    <div style="padding:9px 16px;background:#fdf3f2;border-top:1px solid #f3d6d3;font-size:12.5px;color:#a4453d;font-family:'IBM Plex Mono',monospace">{{ mermaidError }}</div>
+                  </sc-if>
+                </sc-if>
+                <sc-if value="{{ isDrawioFormat }}" hint-placeholder-val="{{ false }}">
+                  <div style="padding:28px 24px;text-align:center;background:#fcfcfd">
+                    <div style="font-size:13.5px;font-weight:600;color:#6b6f7b">draw.io editor integration point</div>
+                    <div style="font-size:12.5px;color:#9aa0ab;margin-top:6px;line-height:1.55;max-width:440px;margin-left:auto;margin-right:auto">The diagrams.net embed mounts here for diagrams Mermaid can't represent (free layout, swimlanes, custom shapes). This section's code stays in Mermaid for the MVP export.</div>
+                  </div>
+                </sc-if>
+              </div>
+            </sc-if>
+
+            <!-- Text section -->
+            <sc-if value="{{ isText }}" hint-placeholder-val="{{ true }}">
+              <div style="display:grid;grid-template-columns:5fr 7fr;gap:16px;align-items:start">
+                <div style="background:#ffffff;border:1px solid #e5e6ea;border-radius:10px;overflow:hidden">
+                  <div style="padding:10px 14px;border-bottom:1px solid #f0f1f4;font-size:12px;font-weight:600;color:#6b6f7b;letter-spacing:.04em">ORIGINAL SOURCE — {{ selPage }}</div>
+                  <div style="padding:16px;font-size:13px;line-height:1.9;color:#4a4e58;white-space:pre-wrap;background:#fafafb;min-height:200px">{{ selOriginal }}</div>
+                </div>
+                <div style="background:#ffffff;border:1px solid #e5e6ea;border-radius:10px;overflow:hidden">
+                  <div style="padding:8px 10px 8px 14px;border-bottom:1px solid #f0f1f4;display:flex;align-items:center;justify-content:space-between">
+                    <div style="font-size:12px;font-weight:600;color:#6b6f7b;letter-spacing:.04em">GENERATED MARKDOWN</div>
+                    <div style="display:flex;background:#f0f1f4;border-radius:6px;padding:2px">
+                      <button onClick="{{ tabPreview }}" style="{{ previewTabStyle }}">Preview</button>
+                      <button onClick="{{ tabEdit }}" style="{{ editTabStyle }}">Edit</button>
+                    </div>
+                  </div>
+                  <sc-if value="{{ isPreviewTab }}" hint-placeholder-val="{{ true }}">
+                    <div style="padding:18px 20px;min-height:220px">{{ mdPreviewNode }}</div>
+                  </sc-if>
+                  <sc-if value="{{ isEditTab }}" hint-placeholder-val="{{ false }}">
+                    <textarea value="{{ selMd }}" onChange="{{ onMdChange }}" spellCheck="{{ false }}" style="width:100%;height:320px;border:none;resize:vertical;padding:14px 16px;font-family:'IBM Plex Mono',monospace;font-size:12.5px;line-height:1.6;color:#1b1d22;background:#fcfcfd;display:block"></textarea>
+                  </sc-if>
+                </div>
+              </div>
+            </sc-if>
+
+          </div>
+        </div>
+
+        <!-- Footer bar -->
+        <div style="border-top:1px solid #e5e6ea;background:#ffffff;padding:12px 28px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+          <div style="font-size:13px;color:#6b6f7b">{{ footerHint }}</div>
+          <button onClick="{{ goComplete }}" disabled="{{ completeDisabled }}" style="{{ completeBtnStyle }}">Complete →</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- ===== Complete screen ===== -->
+  <sc-if value="{{ isComplete }}" hint-placeholder-val="{{ false }}">
+    <div style="flex:1;display:flex;align-items:flex-start;justify-content:center;padding:64px 24px">
+      <div style="width:680px;max-width:100%;display:flex;flex-direction:column;gap:18px">
+        <div style="text-align:center">
+          <div style="width:52px;height:52px;border-radius:50%;background:#e6f4ec;color:#2e9e6b;font-size:24px;display:flex;align-items:center;justify-content:center;margin:0 auto">✓</div>
+          <div style="font-size:22px;font-weight:600;letter-spacing:-0.02em;margin-top:14px">Conversion complete</div>
+          <div style="font-size:13.5px;color:#6b6f7b;margin-top:6px">{{ fileName }} → structured Markdown knowledge asset</div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <sc-for list="{{ statItems }}" as="st" hint-placeholder-count="4">
+            <div style="background:#ffffff;border:1px solid #e5e6ea;border-radius:10px;padding:14px 16px">
+              <div style="font-size:22px;font-weight:600;letter-spacing:-0.02em">{{ st.value }}</div>
+              <div style="font-size:11.5px;color:#8b8f9a;margin-top:3px">{{ st.label }}</div>
+            </div>
+          </sc-for>
+        </div>
+
+        <sc-if value="{{ hasOpenTodos }}" hint-placeholder-val="{{ false }}">
+          <div style="font-size:12.5px;color:#8a5a12;background:#fdf6e8;border:1px solid #f3e3bd;border-radius:8px;padding:10px 14px;line-height:1.5">The export contains <b>{{ todoCount }} TODO / Unclear markers</b> — points where the source document was ambiguous. Docutor never silently fills gaps; resolve these with the document owner.</div>
+        </sc-if>
+
+        <div style="background:#ffffff;border:1px solid #e5e6ea;border-radius:10px;overflow:hidden">
+          <div style="padding:10px 16px;border-bottom:1px solid #f0f1f4;font-size:12px;font-weight:600;color:#6b6f7b;letter-spacing:.04em">EXPORT PACKAGE</div>
+          <sc-for list="{{ exportFiles }}" as="f" hint-placeholder-count="3">
+            <div style="display:flex;align-items:center;gap:10px;padding:11px 16px;border-bottom:1px solid #f6f6f8;font-size:13px">
+              <span style="font-size:14px">{{ f.icon }}</span>
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:12.5px">{{ f.name }}</span>
+              <span style="margin-left:auto;color:#9aa0ab;font-size:12px">{{ f.note }}</span>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="display:flex;gap:10px">
+          <button onClick="{{ downloadMd }}" style="flex:1;background:#4c5fd5;color:#fff;border:none;border-radius:8px;padding:13px;font-family:inherit;font-size:14px;font-weight:600;cursor:pointer" style-hover="background:#3f51c0">↓ Download Markdown</button>
+          <button onClick="{{ downloadZip }}" style="flex:1;background:#fff;color:#1b1d22;border:1px solid #dcdee4;border-radius:8px;padding:13px;font-family:inherit;font-size:14px;font-weight:600;cursor:pointer" style-hover="border-color:#4c5fd5;color:#4c5fd5">{{ zipLabel }}</button>
+        </div>
+        <div style="display:flex;justify-content:center;gap:16px">
+          <button onClick="{{ backToReview }}" style="background:none;border:none;color:#6b6f7b;font-family:inherit;font-size:13px;cursor:pointer;text-decoration:underline;text-underline-offset:3px" style-hover="color:#4c5fd5">← Back to review</button>
+          <button onClick="{{ startOver }}" style="background:none;border:none;color:#6b6f7b;font-family:inherit;font-size:13px;cursor:pointer;text-decoration:underline;text-underline-offset:3px" style-hover="color:#4c5fd5">Start a new document</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;startScreen&quot;: {&quot;editor&quot;: &quot;enum&quot;, &quot;options&quot;: [&quot;upload&quot;, &quot;processing&quot;, &quot;review&quot;, &quot;complete&quot;], &quot;default&quot;: &quot;upload&quot;, &quot;tsType&quot;: &quot;'upload'|'processing'|'review'|'complete'&quot;, &quot;section&quot;: &quot;Demo&quot;}, &quot;stepDurationMs&quot;: {&quot;editor&quot;: &quot;range&quot;, &quot;default&quot;: 650, &quot;min&quot;: 150, &quot;max&quot;: 2000, &quot;step&quot;: 50, &quot;unit&quot;: &quot;ms&quot;, &quot;section&quot;: &quot;Demo&quot;}}">
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = {
+      screen: props.startScreen ?? 'upload',
+      fileName: '', fileSize: '', fileExt: 'DOC',
+      dragOver: false,
+      llmMode: 'mock',
+      procIdx: -1,
+      sections: this.makeSections(),
+      selectedId: 'sec-1',
+      mdTab: 'preview',
+      mermaidError: '',
+      mermaidOk: false,
+      regenerating: false,
+      zipBusy: false,
+    };
+    if (this.state.screen !== 'upload' && !this.state.fileName) {
+      this.state.fileName = '稟議規程_第3版.docx';
+      this.state.fileSize = '412 KB · Word document';
+      this.state.fileExt = 'DOCX';
+    }
+    if (this.state.screen === 'review') this.state.selectedId = 'sec-4';
+  }
+
+  makeSections() {
+    return [
+      { id:'sec-1', type:'heading', title:'Document Overview', page:'p.1',
+        original:'社内稟議規程\n第3版\n\n制定：2008年6月1日\n改訂：2019年4月1日\n所管：総務部\n\n第1条（目的）\n本規程は、支出、契約、方針変更等について経営上の正式な承認を得るための稟議書の起案、回付および決裁の手続を定めるものである。',
+        md:'# Internal Ringi Approval Rules (社内稟議規程)\n\n> Source: 稟議規程_第3版.docx — General Affairs Dept. (総務部), revised 2019-04-01\n\n## 1. Purpose\n\nThis regulation defines the procedure for drafting, circulating, and approving **ringi documents (稟議書)** — the formal mechanism for obtaining management approval for expenditures, contracts, and policy changes.',
+        status:'pending' },
+      { id:'sec-2', type:'paragraph', title:'Scope of Application', page:'p.1',
+        original:'第2条（適用範囲）\n本規程は、当社および国内子会社の全従業員に適用する。\n\n対象：支出、契約締結、新規取引先の登録、方針の例外措置\n対象外：小口現金で処理する5万円未満の経常的購入',
+        md:'## 2. Scope of Application\n\nThese rules apply to **all employees** of the company and its domestic subsidiaries.\n\n- Applies to: expenditures, contract signing, new vendor onboarding, and policy exceptions\n- Does not apply to: routine purchases under ¥50,000 handled via petty cash\n\nUnclear: whether contract *renewals* at unchanged terms require a new ringi — the source only mentions "new contracts" (契約締結).',
+        status:'pending' },
+      { id:'sec-3', type:'table', title:'Approval Authority Thresholds', page:'p.2',
+        original:'第4条（決裁権限）\n\n［表2：決裁権限基準表］\n\n案件金額（1件あたり）｜最終決裁者｜標準所要日数\n100万円以下｜課長｜3営業日\n100万円超〜1,000万円以下｜部長｜5営業日\n1,000万円超｜経営会議｜次回定例会議\n\n※金額はすべて税抜。分割発注による基準回避は禁止する。',
+        md:'## 3. Approval Authority Thresholds\n\n| Amount (per case, tax-excl.) | Final approver | Standard lead time |\n| --- | --- | --- |\n| ≤ ¥1,000,000 | Section manager (課長) | 3 business days |\n| ¥1,000,001 – ¥10,000,000 | Department head (部長) | 5 business days |\n| > ¥10,000,000 | Executive committee (経営会議) | Next scheduled meeting |\n\n**Constraint:** splitting a purchase into smaller orders to stay under a threshold is prohibited (分割発注の禁止).',
+        status:'pending' },
+      { id:'sec-4', type:'diagram', title:'Ringi Approval Flow', page:'p.3 · Fig.4',
+        original:'', format:'mermaid',
+        md:'## 4. Approval Workflow\n\nThe approval route depends on the total amount of the request. The flow below is converted from Fig.4 of the source document.\n\n![Original diagram capture](assets/original-diagram.png)',
+        code:'flowchart TD\n  A["Requester drafts ringi (起案)"] --> B["Section manager review (課長)"]\n  B -- "Reject (却下)" --> R["Returned to requester (差戻し)"]\n  R -. "revise & resubmit" .-> A\n  B -- "Approve (承認)" --> C{"Amount > ¥1,000,000?"}\n  C -- "No" --> E["General Affairs registers & archives (総務部・稟議発効)"]\n  C -- "Yes" --> D["Department head approval (部長)"]\n  D --> F{"Amount > ¥10,000,000?"}\n  F -- "No" --> E\n  F -- "Yes" --> G["Executive committee (経営会議)"]\n  G --> E\n  %% TODO: source shows no rejection path from department head — confirm with owner',
+        status:'pending' },
+      { id:'sec-5', type:'requirement', title:'Expedited Approval (特急稟議)', page:'p.4',
+        original:'第7条（特急稟議）\n業務上の損失が生じる急を要する案件については、特急扱いとすることができる。\n\n・起案者は稟議書の頭書に緊急の理由を明記すること\n・課長確認は省略できない（いかなる工程も省略不可）\n・目標処理期間：各決裁工程につき1営業日',
+        md:'## 5. Expedited Approval (特急稟議)\n\n**Requirement:** expedited processing may be requested when a delay would cause direct business loss.\n\n- The requester **must state the reason for urgency** in the ringi header\n- Section manager review is still mandatory — **no step may be skipped**\n- Target turnaround: 1 business day per approval step\n\nUnclear: the source does not define *who authorizes* use of the expedited route. Marked for confirmation with General Affairs.',
+        status:'pending' },
+      { id:'sec-6', type:'note', title:'Exceptions and Special Cases', page:'p.4',
+        original:'第9条（例外事項）\n\n・緊急時に口頭承認された案件は、5営業日以内に事後稟議として文書化しなければならない\n・決裁者が3日以上不在の場合、職務代理者（別表B参照）が決裁できる\n・却下された稟議は修正のうえ再提出できる。その際、旧稟議番号を参照すること',
+        md:'## 6. Exceptions and Special Cases\n\n- A ringi approved **verbally in an emergency** must be documented within 5 business days (事後稟議)\n- If an approver is absent for more than 3 days, their designated deputy (職務代理者) may approve\n- A rejected ringi may be resubmitted after revision; the previous ringi number must be referenced\n\nTODO: the source references "Appendix B: deputy approver list (別表B)" which was not included in the uploaded file.',
+        status:'pending' },
+    ];
+  }
+
+  componentDidMount() {
+    this.mmSeq = 0;
+    const boot = () => {
+      if (window.mermaid) {
+        window.mermaid.initialize({ startOnLoad:false, theme:'neutral', securityLevel:'loose',
+          fontFamily:"'IBM Plex Sans',sans-serif",
+          themeVariables:{ primaryColor:'#eef0fc', primaryBorderColor:'#4c5fd5', primaryTextColor:'#1b1d22', lineColor:'#6b6f7b', fontSize:'14px' } });
+        this.mermaidReady = true;
+        this.queueMermaid(0);
+      } else setTimeout(boot, 150);
+    };
+    boot();
+    if (this.state.screen === 'processing') this.runProcessing();
+  }
+
+  componentWillUnmount() { clearTimeout(this.mmT); clearInterval(this.procT); }
+
+  sel() { return this.state.sections.find(s => s.id === this.state.selectedId); }
+
+  patchSection(id, patch) {
+    this.setState(st => ({ sections: st.sections.map(s => s.id === id ? { ...s, ...patch } : s) }));
+  }
+
+  // ---------- processing ----------
+  runProcessing() {
+    clearInterval(this.procT);
+    this.setState({ procIdx: 0 });
+    const stepMs = this.props.stepDurationMs ?? 650;
+    this.procT = setInterval(() => {
+      this.setState(st => {
+        const next = st.procIdx + 1;
+        if (next >= 5) {
+          clearInterval(this.procT);
+          setTimeout(() => this.setState({ screen:'review', sections:this.makeSections(), selectedId:'sec-1', mdTab:'preview' }), 450);
+          return { procIdx: 5 };
+        }
+        return { procIdx: next };
+      });
+    }, stepMs);
+  }
+
+  // ---------- mermaid ----------
+  queueMermaid(delay) {
+    clearTimeout(this.mmT);
+    this.mmT = setTimeout(() => this.renderMermaid(), delay ?? 400);
+  }
+
+  async renderMermaid() {
+    const s = this.state.sections.find(x => x.type === 'diagram' && x.id === this.state.selectedId);
+    if (!s || !this.mmHost || !this.mermaidReady || !window.mermaid) return;
+    const id = 'docutor-mm-' + (++this.mmSeq);
+    try {
+      const { svg } = await window.mermaid.render(id, s.code);
+      if (this.mmHost) { this.mmHost.innerHTML = svg; const el = this.mmHost.querySelector('svg'); if (el) { el.style.maxWidth = '100%'; el.style.height = 'auto'; } }
+      this.setState({ mermaidError:'', mermaidOk:true });
+    } catch (e) {
+      const orphan = document.getElementById(id); if (orphan) orphan.remove();
+      const orphan2 = document.getElementById('d' + id); if (orphan2) orphan2.remove();
+      this.setState({ mermaidError: String(e.message || e).split('\n')[0], mermaidOk:false });
+    }
+  }
+
+  // ---------- markdown preview ----------
+  mdToHtml(md) {
+    const esc = t => t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const inline = t => esc(t)
+      .replace(/!\[(.*?)\]\((.*?)\)/g, '<img src="$2" alt="$1" style="max-width:100%;border:1px solid #e5e6ea;border-radius:6px;margin:4px 0">')
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.+?)\*/g, '<em>$1</em>')
+      .replace(/`(.+?)`/g, '<code style="background:#f0f1f4;border-radius:4px;padding:1px 5px;font-family:\'IBM Plex Mono\',monospace;font-size:.9em">$1</code>')
+      .replace(/(TODO:|Unclear:)/g, '<mark style="background:#fdf0d8;color:#8a5a12;padding:0 4px;border-radius:3px;font-weight:600">$1</mark>');
+    const lines = md.split('\n');
+    let html = '', inList = false, inTable = false, tableRows = [], inCode = false, codeBuf = [];
+    const closeList = () => { if (inList) { html += '</ul>'; inList = false; } };
+    const flushTable = () => {
+      if (!inTable) return;
+      const rows = tableRows.filter(r => !/^\s*\|?\s*:?-{2,}/.test(r));
+      html += '<table style="border-collapse:collapse;width:100%;margin:10px 0;font-size:13px">';
+      rows.forEach((r, i) => {
+        const cells = r.split('|').slice(1, -1).map(c => c.trim());
+        html += '<tr>' + cells.map(c => i === 0
+          ? '<th style="border:1px solid #e5e6ea;background:#f6f6f8;padding:7px 10px;text-align:left;font-weight:600">' + inline(c) + '</th>'
+          : '<td style="border:1px solid #e5e6ea;padding:7px 10px">' + inline(c) + '</td>').join('') + '</tr>';
+      });
+      html += '</table>'; inTable = false; tableRows = [];
+    };
+    for (const raw of lines) {
+      const line = raw;
+      if (inCode) {
+        if (/^```/.test(line)) { html += '<pre style="background:#f6f6f8;border:1px solid #e5e6ea;border-radius:7px;padding:12px 14px;overflow:auto;font-family:\'IBM Plex Mono\',monospace;font-size:12px;line-height:1.6">' + esc(codeBuf.join('\n')) + '</pre>'; inCode = false; codeBuf = []; }
+        else codeBuf.push(line);
+        continue;
+      }
+      if (/^```/.test(line)) { closeList(); flushTable(); inCode = true; continue; }
+      if (/^\s*\|/.test(line)) { closeList(); inTable = true; tableRows.push(line); continue; }
+      flushTable();
+      if (/^### /.test(line)) { closeList(); html += '<h3 style="font-size:14.5px;font-weight:600;margin:16px 0 6px">' + inline(line.slice(4)) + '</h3>'; }
+      else if (/^## /.test(line)) { closeList(); html += '<h2 style="font-size:16.5px;font-weight:600;margin:18px 0 8px;letter-spacing:-.01em">' + inline(line.slice(3)) + '</h2>'; }
+      else if (/^# /.test(line)) { closeList(); html += '<h1 style="font-size:20px;font-weight:700;margin:4px 0 10px;letter-spacing:-.015em">' + inline(line.slice(2)) + '</h1>'; }
+      else if (/^> /.test(line)) { closeList(); html += '<blockquote style="border-left:3px solid #dcdee4;margin:8px 0;padding:2px 0 2px 12px;color:#6b6f7b;font-size:13px">' + inline(line.slice(2)) + '</blockquote>'; }
+      else if (/^- /.test(line)) { if (!inList) { html += '<ul style="margin:8px 0;padding-left:20px;display:flex;flex-direction:column;gap:5px">'; inList = true; } html += '<li style="font-size:13.5px;line-height:1.6">' + inline(line.slice(2)) + '</li>'; }
+      else if (/^\s*$/.test(line)) { closeList(); }
+      else { closeList(); html += '<p style="font-size:13.5px;line-height:1.7;margin:8px 0">' + inline(line) + '</p>'; }
+    }
+    closeList(); flushTable();
+    return html;
+  }
+
+  // ---------- export ----------
+  buildMarkdown() {
+    const kept = this.state.sections.filter(s => s.status !== 'rejected');
+    const body = kept.map(s => s.type === 'diagram' ? s.md + '\n\n```mermaid\n' + s.code + '\n```' : s.md).join('\n\n');
+    return '<!-- Generated by Docutor — source: ' + this.state.fileName + ' — ' + new Date().toISOString().slice(0,10) + ' -->\n<!-- ' + kept.length + ' sections · unresolved items are marked TODO: / Unclear: -->\n\n' + body + '\n';
+  }
+
+  triggerDownload(blob, name) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = name; document.body.appendChild(a); a.click();
+    setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 800);
+  }
+
+  renderVals() {
+    const st = this.state;
+    const sel = this.sel() || st.sections[0];
+    const total = st.sections.length;
+    const accepted = st.sections.filter(s => s.status === 'accepted').length;
+    const rejected = st.sections.filter(s => s.status === 'rejected').length;
+    const reviewed = accepted + rejected;
+    const allReviewed = reviewed === total;
+    const diagram = st.sections.find(s => s.type === 'diagram');
+    const finalMd = this.buildMarkdown();
+    const todoCount = (finalMd.match(/TODO:|Unclear:/g) || []).length;
+
+    const stepStyle = on => 'padding:4px 10px;border-radius:6px;font-weight:' + (on ? '600;background:#eef0fc;color:#4c5fd5' : '400;color:#9aa0ab');
+    const statusColors = { pending:'#9aa0ab', edited:'#b7791f', accepted:'#2e9e6b', rejected:'#c4554d' };
+    const statusLabels = { pending:'Pending review', edited:'Edited', accepted:'Accepted', rejected:'Rejected' };
+    const typeLabels = { heading:'HEADING', paragraph:'TEXT', table:'TABLE', diagram:'DIAGRAM', requirement:'REQUIREMENT', note:'NOTE', image:'IMAGE' };
+
+    const procLabels = ['Extracting text & document structure','Detecting tables','Capturing diagram candidates (1 found)','Converting content with LLM — mock provider','Building review sections'];
+    const procItems = procLabels.map((label, i) => {
+      const done = st.procIdx > i, active = st.procIdx === i;
+      return {
+        label,
+        icon: done ? '✓' : active ? '' : '·',
+        iconStyle: 'width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0;' +
+          (done ? 'background:#e6f4ec;color:#2e9e6b;font-weight:700' :
+           active ? 'border:2px solid #4c5fd5;border-top-color:#e5e6ea;animation:docutorSpin .8s linear infinite' :
+           'background:#f0f1f4;color:#9aa0ab'),
+        textStyle: done ? 'color:#1b1d22' : active ? 'color:#1b1d22;font-weight:600' : 'color:#b4b8c0',
+      };
+    });
+
+    const sideItems = st.sections.map(s => ({
+      title: s.title,
+      typeLabel: typeLabels[s.type],
+      meta: s.page + ' · ' + statusLabels[s.status],
+      onSelect: () => { this.setState({ selectedId: s.id, mdTab:'preview', mermaidError:'' }); if (s.type === 'diagram') this.queueMermaid(50); },
+      rowStyle: 'padding:10px 12px;border-radius:8px;cursor:pointer;margin-bottom:2px;border:1px solid ' +
+        (s.id === st.selectedId ? '#c7cdf1;background:#eef0fc' : 'transparent'),
+      typeBadgeStyle: 'font-size:9.5px;font-weight:700;letter-spacing:.06em;color:' + (s.type === 'diagram' ? '#4c5fd5' : '#8b8f9a'),
+      dotStyle: 'width:8px;height:8px;border-radius:50%;flex-shrink:0;background:' + statusColors[s.status],
+    }));
+
+    const tabStyle = on => 'border:none;border-radius:5px;padding:4px 12px;font-family:inherit;font-size:12px;font-weight:500;cursor:pointer;' +
+      (on ? 'background:#fff;color:#1b1d22;box-shadow:0 1px 2px rgba(20,22,40,.1)' : 'background:transparent;color:#6b6f7b');
+
+    return {
+      // header
+      step1Style: stepStyle(st.screen === 'upload' || st.screen === 'processing'),
+      step2Style: stepStyle(st.screen === 'review'),
+      step3Style: stepStyle(st.screen === 'complete'),
+
+      // screens
+      isUpload: st.screen === 'upload',
+      isProcessing: st.screen === 'processing',
+      isReview: st.screen === 'review',
+      isComplete: st.screen === 'complete',
+
+      // upload
+      fileName: st.fileName, fileSize: st.fileSize, fileExt: st.fileExt,
+      hasFile: !!st.fileName,
+      dropzoneStyle: 'background:#ffffff;border:1.5px dashed ' + (st.dragOver ? '#4c5fd5' : '#d3d5dc') + ';border-radius:12px;padding:36px 24px;display:flex;flex-direction:column;align-items:center;cursor:pointer;transition:border-color .15s,background .15s;' + (st.dragOver ? 'background:#fbfbfe' : ''),
+      setFileInput: el => { this.fileInput = el; },
+      openFilePicker: () => { if (this.fileInput) this.fileInput.click(); },
+      onDragOver: e => { e.preventDefault(); if (!st.dragOver) this.setState({ dragOver:true }); },
+      onDragLeave: () => this.setState({ dragOver:false }),
+      onDrop: e => {
+        e.preventDefault();
+        const f = e.dataTransfer.files && e.dataTransfer.files[0];
+        if (f) this.setFile(f.name, f.size);
+        this.setState({ dragOver:false });
+      },
+      onFilePicked: e => { const f = e.target.files && e.target.files[0]; if (f) this.setFile(f.name, f.size); },
+      useSample: () => this.setState({ fileName:'稟議規程_第3版.docx', fileSize:'412 KB · Word document', fileExt:'DOCX' }),
+      clearFile: () => this.setState({ fileName:'', fileSize:'' }),
+      isRealMode: st.llmMode === 'real',
+      setModeMock: () => this.setState({ llmMode:'mock' }),
+      setModeReal: () => this.setState({ llmMode:'real' }),
+      mockBtnStyle: tabStyle(st.llmMode === 'mock'),
+      realBtnStyle: tabStyle(st.llmMode === 'real'),
+      startConversion: () => { this.setState({ screen:'processing' }); this.runProcessing(); },
+
+      // processing
+      procItems,
+
+      // review — sidebar
+      sectionCount: total, acceptedCount: accepted, sideItems,
+      progressBarStyle: 'height:100%;background:#2e9e6b;border-radius:2px;transition:width .3s;width:' + Math.round(accepted / total * 100) + '%',
+
+      // review — selected section
+      selTitle: sel.title,
+      selPage: sel.page,
+      selTypeLabel: typeLabels[sel.type],
+      selTypeBadgeStyle: 'font-size:10px;font-weight:700;letter-spacing:.07em;color:#4c5fd5;background:#eef0fc;border-radius:4px;padding:3px 7px',
+      selStatusLabel: statusLabels[sel.status],
+      selStatusBadgeStyle: 'font-size:11px;font-weight:600;border-radius:4px;padding:3px 8px;color:#fff;background:' + statusColors[sel.status],
+      isDiagram: sel.type === 'diagram',
+      isText: sel.type !== 'diagram',
+      selOriginal: sel.original,
+      selMd: sel.md,
+      onMdChange: e => {
+        const v = e.target.value;
+        this.patchSection(sel.id, { md: v, status: sel.status === 'accepted' || sel.status === 'rejected' ? 'edited' : (sel.status === 'pending' ? 'edited' : sel.status) });
+      },
+      mdPreviewNode: React.createElement('div', { key: sel.id, dangerouslySetInnerHTML: { __html: this.mdToHtml(sel.md) } }),
+      isPreviewTab: st.mdTab === 'preview',
+      isEditTab: st.mdTab === 'edit',
+      tabPreview: () => this.setState({ mdTab:'preview' }),
+      tabEdit: () => this.setState({ mdTab:'edit' }),
+      previewTabStyle: tabStyle(st.mdTab === 'preview'),
+      editTabStyle: tabStyle(st.mdTab === 'edit'),
+
+      // diagram
+      diagCode: diagram ? diagram.code : '',
+      diagFormat: diagram ? diagram.format : 'mermaid',
+      isMermaidFormat: !diagram || diagram.format === 'mermaid',
+      isDrawioFormat: !!diagram && diagram.format === 'drawio',
+      onFormatChange: e => this.patchSection(sel.id, { format: e.target.value }),
+      onCodeChange: e => {
+        const v = e.target.value;
+        this.patchSection(sel.id, { code: v, status: sel.status === 'pending' || sel.status === 'accepted' ? 'edited' : sel.status });
+        this.queueMermaid(450);
+      },
+      setMermaidHost: el => { this.mmHost = el; if (el) this.queueMermaid(30); },
+      hasMermaidError: !!st.mermaidError,
+      mermaidError: st.mermaidError,
+      mermaidStatus: st.mermaidError ? 'parse error — showing last valid render' : 'Mermaid · flowchart',
+
+      // actions
+      acceptSection: () => {
+        this.patchSection(sel.id, { status:'accepted' });
+        setTimeout(() => {
+          const secs = this.state.sections;
+          const i = secs.findIndex(x => x.id === sel.id);
+          const next = secs.slice(i + 1).concat(secs.slice(0, i)).find(x => x.status === 'pending' || x.status === 'edited');
+          if (next) {
+            this.setState({ selectedId: next.id, mdTab:'preview', mermaidError:'' });
+            if (next.type === 'diagram') this.queueMermaid(50);
+          }
+        }, 180);
+      },
+      rejectSection: () => this.patchSection(sel.id, { status:'rejected' }),
+      regenerate: () => {
+        if (st.regenerating) return;
+        this.setState({ regenerating:true });
+        setTimeout(() => {
+          const fresh = this.makeSections().find(x => x.id === sel.id);
+          this.patchSection(sel.id, { md: fresh.md, code: fresh.code, format: fresh.format || 'mermaid', status:'pending' });
+          this.setState({ regenerating:false, mermaidError:'' });
+          if (fresh.type === 'diagram') this.queueMermaid(50);
+        }, 1100);
+      },
+      regenLabel: st.regenerating ? 'Regenerating…' : '↻ Regenerate',
+      regenBtnStyle: 'background:#fff;border:1px solid #dcdee4;color:#1b1d22;border-radius:7px;padding:8px 14px;font-family:inherit;font-size:13px;font-weight:500;cursor:pointer;' + (st.regenerating ? 'opacity:.6;animation:docutorPulse 1.2s ease infinite' : ''),
+
+      // footer
+      footerHint: allReviewed
+        ? (rejected > 0 ? accepted + ' accepted · ' + rejected + ' rejected (excluded from export)' : 'All ' + total + ' sections accepted — ready to export')
+        : reviewed + ' of ' + total + ' sections reviewed — accept or reject each section to complete',
+      completeDisabled: !allReviewed,
+      completeBtnStyle: 'border:none;border-radius:8px;padding:10px 24px;font-family:inherit;font-size:14px;font-weight:600;' +
+        (allReviewed ? 'background:#4c5fd5;color:#fff;cursor:pointer' : 'background:#e5e6ea;color:#9aa0ab;cursor:not-allowed'),
+      goComplete: () => { if (allReviewed) this.setState({ screen:'complete' }); },
+
+      // complete
+      statItems: [
+        { value: String(total), label: 'sections converted' },
+        { value: String(accepted), label: 'accepted for export' },
+        { value: '1', label: 'diagram → Mermaid' },
+        { value: String(todoCount), label: 'TODO / Unclear markers' },
+      ],
+      hasOpenTodos: todoCount > 0,
+      todoCount,
+      exportFiles: [
+        { icon:'📝', name:'document.md', note: Math.round(finalMd.length / 102.4) / 10 + ' KB · ' + (total - rejected) + ' sections' },
+        { icon:'🖼', name:'assets/original-diagram.png', note:'original capture, Fig.4' },
+        { icon:'◇', name:'assets/approval-flow.mmd', note:'Mermaid source' },
+      ],
+      downloadMd: () => this.triggerDownload(new Blob([finalMd], { type:'text/markdown' }), 'document.md'),
+      zipLabel: st.zipBusy ? 'Packaging…' : '↓ Download ZIP with assets',
+      downloadZip: async () => {
+        if (st.zipBusy || !window.JSZip) return;
+        this.setState({ zipBusy:true });
+        try {
+          const zip = new window.JSZip();
+          zip.file('document.md', this.buildMarkdown());
+          if (diagram) zip.file('assets/approval-flow.mmd', diagram.code);
+          try {
+            const r = await fetch('assets/original-diagram.png');
+            if (r.ok) zip.file('assets/original-diagram.png', await r.blob());
+          } catch (e) {}
+          const blob = await zip.generateAsync({ type:'blob' });
+          this.triggerDownload(blob, 'docutor-export.zip');
+        } finally { this.setState({ zipBusy:false }); }
+      },
+      backToReview: () => { this.setState({ screen:'review' }); this.queueMermaid(100); },
+      startOver: () => this.setState({ screen:'upload', fileName:'', fileSize:'', sections:this.makeSections(), selectedId:'sec-1', procIdx:-1, mermaidError:'', mdTab:'preview' }),
+    };
+  }
+
+  setFile(name, size) {
+    const ext = (name.split('.').pop() || 'doc').toUpperCase();
+    const kb = size ? (size > 1048576 ? (size / 1048576).toFixed(1) + ' MB' : Math.round(size / 1024) + ' KB') : '—';
+    const kind = { PPTX:'PowerPoint', PPT:'PowerPoint', DOCX:'Word document', DOC:'Word document', PDF:'PDF' }[ext] || 'Document';
+    this.setState({ fileName:name, fileSize: kb + ' · ' + kind, fileExt: ext.slice(0,4) });
+  }
+}
+</script>
+</body>
+</html>
