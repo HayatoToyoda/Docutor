@@ -112,6 +112,112 @@ function MermaidPreview({ code }: { code: string }) {
   );
 }
 
+function DrawioEditor({
+  title,
+  xml,
+  onChange,
+  onSave,
+}: {
+  title: string;
+  xml: string;
+  onChange: (xml: string) => void;
+  onSave: (xml: string) => void;
+}) {
+  const iframeRef = useState<HTMLIFrameElement | null>(null);
+  const [iframeElement, setIframeElement] = iframeRef;
+  const [editorStatus, setEditorStatus] = useState("Loading draw.io editor...");
+
+  useEffect(() => {
+    function postLoad() {
+      iframeElement?.contentWindow?.postMessage(
+        JSON.stringify({
+          action: "load",
+          xml,
+          title,
+          autosave: 1,
+          noExitBtn: 1,
+          saveAndExit: 0,
+        }),
+        "https://embed.diagrams.net",
+      );
+    }
+
+    function handleMessage(event: MessageEvent) {
+      if (event.origin !== "https://embed.diagrams.net") {
+        return;
+      }
+
+      let message: {
+        event?: string;
+        xml?: string;
+        error?: string;
+      };
+
+      try {
+        message =
+          typeof event.data === "string" ? JSON.parse(event.data) : event.data;
+      } catch {
+        return;
+      }
+
+      if (message.event === "init") {
+        setEditorStatus("draw.io editor ready.");
+        postLoad();
+        return;
+      }
+
+      if (message.event === "load") {
+        setEditorStatus("draw.io diagram loaded.");
+        return;
+      }
+
+      if (message.event === "autosave" && message.xml) {
+        onChange(message.xml);
+        setEditorStatus("draw.io changes captured.");
+        return;
+      }
+
+      if (message.event === "save" && message.xml) {
+        onChange(message.xml);
+        onSave(message.xml);
+        setEditorStatus("draw.io XML saved.");
+        return;
+      }
+
+      if (message.error) {
+        setEditorStatus(message.error);
+      }
+    }
+
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, [iframeElement, onChange, onSave, title, xml]);
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-medium text-slate-700">
+          draw.io editor
+        </span>
+        <span className="text-xs text-slate-500">{editorStatus}</span>
+      </div>
+      <iframe
+        className="h-[420px] w-full rounded border border-slate-300"
+        ref={setIframeElement}
+        src="https://embed.diagrams.net/?embed=1&proto=json&spin=1&libraries=1&noExitBtn=1&saveAndExit=0"
+        title={title}
+      />
+      <button
+        className="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700"
+        onClick={() => onSave(xml)}
+        type="button"
+      >
+        Save draw.io XML
+      </button>
+    </div>
+  );
+}
+
 export default function ReviewPage() {
   const params = useParams<{ id: string }>();
   const [job, setJob] = useState<StoredDocumentJob | null>(null);
@@ -324,26 +430,46 @@ export default function ReviewPage() {
           </div>
           {isDiagramSection(selectedSection) ? (
             <div className="mt-4 space-y-4">
-              <MermaidPreview code={selectedSection.generatedCode} />
-              <label className="block">
-                <span className="text-sm font-medium text-slate-700">
-                  Mermaid code
-                </span>
-                <textarea
-                  className="mt-2 h-64 w-full resize-none rounded border border-slate-300 bg-slate-50 p-3 font-mono text-sm leading-6 text-slate-900"
-                  onBlur={() =>
-                    saveSection(selectedSection.id, {
-                      generatedCode: selectedSection.generatedCode,
-                    })
-                  }
-                  onChange={(event) =>
+              {selectedSection.format === "mermaid" ? (
+                <>
+                  <MermaidPreview code={selectedSection.generatedCode} />
+                  <label className="block">
+                    <span className="text-sm font-medium text-slate-700">
+                      Mermaid code
+                    </span>
+                    <textarea
+                      className="mt-2 h-64 w-full resize-none rounded border border-slate-300 bg-slate-50 p-3 font-mono text-sm leading-6 text-slate-900"
+                      onBlur={() =>
+                        saveSection(selectedSection.id, {
+                          generatedCode: selectedSection.generatedCode,
+                        })
+                      }
+                      onChange={(event) =>
+                        updateLocalSection(selectedSection.id, {
+                          generatedCode: event.target.value,
+                        })
+                      }
+                      value={selectedSection.generatedCode}
+                    />
+                  </label>
+                </>
+              ) : null}
+              {selectedSection.drawioXml ? (
+                <DrawioEditor
+                  onChange={(nextXml) =>
                     updateLocalSection(selectedSection.id, {
-                      generatedCode: event.target.value,
+                      drawioXml: nextXml,
                     })
                   }
-                  value={selectedSection.generatedCode}
+                  onSave={(nextXml) =>
+                    saveSection(selectedSection.id, {
+                      drawioXml: nextXml,
+                    })
+                  }
+                  title={selectedSection.title}
+                  xml={selectedSection.drawioXml}
                 />
-              </label>
+              ) : null}
             </div>
           ) : (
             <div className="prose prose-slate mt-4 max-w-none text-sm">

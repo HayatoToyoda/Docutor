@@ -31,7 +31,7 @@ Team execution rule:
 - [x] Build review screen with section list, Markdown editor/preview, accept/reject.
 - [x] Add Mermaid editor and preview.
 - [x] Add `DiagramIR` to Mermaid/draw.io generation.
-- [ ] Add diagrams.net embedded editor and XML persistence.
+- [x] Add diagrams.net embedded editor and XML persistence.
 - [ ] Add regenerate section/diagram flow.
 - [ ] Add Markdown and ZIP exports.
 - [ ] Add Codex App Server local adapter behind an env flag.
