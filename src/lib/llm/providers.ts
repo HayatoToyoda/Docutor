@@ -1,3 +1,4 @@
+import { createCodexLocalProvider } from "@/lib/llm/codex-local-provider";
 import { createMockProvider } from "@/lib/llm/mock-provider";
 import { createOpenAIProvider } from "@/lib/llm/openai-provider";
 import type { ConversionProvider, ConversionProviderName } from "@/lib/types";
@@ -15,7 +16,9 @@ export function createConversionProvider(
     return createMockProvider();
   }
 
-  throw new Error(
-    "Codex local provider is not implemented yet. Use DOCUTOR_LLM_PROVIDER=openai or mock.",
-  );
+  if (providerName === "codex-local") {
+    return createCodexLocalProvider();
+  }
+
+  throw new Error("Unsupported conversion provider.");
 }

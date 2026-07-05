@@ -34,7 +34,7 @@ Team execution rule:
 - [x] Add diagrams.net embedded editor and XML persistence.
 - [x] Add regenerate section/diagram flow.
 - [x] Add Markdown and ZIP exports.
-- [ ] Add Codex App Server local adapter behind an env flag.
+- [x] Add Codex App Server local adapter behind an env flag.
 - [ ] Add fixtures, tests, browser smoke checks, and final polish.
 
 ## Key Implementation Changes
