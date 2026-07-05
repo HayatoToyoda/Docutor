@@ -9,6 +9,13 @@ import {
   useState,
 } from "react";
 import { AppHeader } from "@/app/components/app-header";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
+import { Separator } from "@/components/ui/separator";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
 type Provider = "openai" | "mock";
 
@@ -125,10 +132,10 @@ export default function Home() {
           />
 
           <button
-            className={`mt-6 flex w-full flex-col items-center rounded-xl border-[1.5px] border-dashed bg-white px-6 py-9 text-center transition ${
+            className={`mt-6 flex w-full flex-col items-center rounded-xl border-[1.5px] border-dashed bg-card px-6 py-9 text-center transition ${
               isDragging
-                ? "border-[#4c5fd5] bg-[#fbfbfe]"
-                : "border-[#d3d5dc] hover:border-[#4c5fd5]"
+                ? "border-primary bg-[#fbfbfe]"
+                : "border-[#d3d5dc] hover:border-primary"
             }`}
             onClick={() => fileInputRef.current?.click()}
             onDragEnter={() => setIsDragging(true)}
@@ -137,7 +144,7 @@ export default function Home() {
             onDrop={handleDrop}
             type="button"
           >
-            <span className="flex h-11 w-11 items-center justify-center rounded-[10px] bg-[#eef0fc] text-xl font-semibold text-[#4c5fd5]">
+            <span className="flex h-11 w-11 items-center justify-center rounded-[10px] bg-accent text-xl font-semibold text-accent-foreground">
               ↑
             </span>
             <span className="mt-3 text-sm font-medium">
@@ -149,9 +156,9 @@ export default function Home() {
           </button>
 
           {file ? (
-            <div className="mt-5 overflow-hidden rounded-[10px] border border-[#e5e6ea] bg-white">
+            <Card className="mt-5 gap-0 rounded-[10px] py-0">
               <div className="flex items-center gap-3 p-4">
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#eef0fc] text-[10px] font-bold text-[#4c5fd5]">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-accent text-[10px] font-bold text-accent-foreground">
                   {file.name.split(".").pop()?.toUpperCase() ?? "DOC"}
                 </span>
                 <div className="min-w-0 flex-1">
@@ -160,15 +167,12 @@ export default function Home() {
                     {formatBytes(file.size)}
                   </p>
                 </div>
-                <span className="flex items-center gap-1.5 text-xs font-medium text-[#2e9e6b]">
-                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#e6f4ec]">
-                    ✓
-                  </span>
-                  Ready
-                </span>
-                <button
+                <Badge className="bg-success/10 text-success">
+                  ✓ Ready
+                </Badge>
+                <Button
                   aria-label="Remove selected file"
-                  className="px-1 text-lg text-[#8b8f9a] hover:text-[#c4554d]"
+                  className="text-[#8b8f9a] hover:text-destructive"
                   onClick={() => {
                     setFile(null);
                     setMessage(null);
@@ -176,71 +180,82 @@ export default function Home() {
                       fileInputRef.current.value = "";
                     }
                   }}
+                  size="icon-sm"
                   type="button"
+                  variant="ghost"
                 >
                   ×
-                </button>
+                </Button>
               </div>
 
-              <div className="flex flex-wrap items-center gap-3 border-t border-[#f0f1f4] px-4 py-3">
+              <Separator />
+              <div className="flex flex-wrap items-center gap-3 px-4 py-3">
                 <span className="text-xs font-medium text-[#6b6f7b]">
                   Conversion mode
                 </span>
-                <div className="flex rounded-md bg-[#f0f1f4] p-0.5">
+                <ToggleGroup
+                  className="rounded-md bg-secondary p-0.5"
+                  onValueChange={(values) => {
+                    const next = values[0];
+                    if (next) setProvider(next as Provider);
+                  }}
+                  spacing={0}
+                  value={[provider]}
+                >
                   {(["openai", "mock"] as Provider[]).map((option) => (
-                    <button
-                      className={`rounded-[5px] px-3 py-1 text-xs font-medium ${
-                        provider === option
-                          ? "bg-white text-[#1b1d22] shadow-sm"
-                          : "text-[#6b6f7b]"
-                      }`}
+                    <ToggleGroupItem
+                      className="rounded-[5px] px-3 py-1 text-xs font-medium hover:bg-transparent data-pressed:bg-white data-pressed:text-foreground data-pressed:shadow-sm"
                       key={option}
-                      onClick={() => setProvider(option)}
-                      type="button"
+                      value={option}
                     >
                       {option === "openai" ? "OpenAI" : "Mock"}
-                    </button>
+                    </ToggleGroupItem>
                   ))}
-                </div>
+                </ToggleGroup>
               </div>
 
               {isConverting ? (
-                <div className="border-t border-[#f0f1f4] px-4 py-4">
-                  <div className="flex items-center justify-between gap-4 text-xs">
-                    <span className="font-medium">{message}</span>
-                    <span className="text-[#4c5fd5]">{progress}%</span>
+                <>
+                  <Separator />
+                  <div className="px-4 py-4">
+                    <div className="flex items-center justify-between gap-4 text-xs">
+                      <span className="font-medium">{message}</span>
+                      <span className="text-primary">{progress}%</span>
+                    </div>
+                    <Progress className="mt-2" value={progress} />
                   </div>
-                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[#eceef5]">
-                    <div
-                      className="h-full rounded-full bg-[#4c5fd5] transition-all duration-500"
-                      style={{ width: `${progress}%` }}
-                    />
-                  </div>
-                </div>
+                </>
               ) : null}
 
-              <div className="border-t border-[#f0f1f4] p-4">
-                <button
-                  className="w-full rounded-lg bg-[#4c5fd5] px-4 py-3 text-sm font-semibold text-white hover:bg-[#3f51c0] disabled:cursor-not-allowed disabled:bg-[#aeb5df]"
+              <Separator />
+              <div className="p-4">
+                <Button
+                  className="w-full py-3 text-sm font-semibold"
                   disabled={isConverting}
+                  size="lg"
                   type="submit"
                 >
                   {isConverting ? "Converting document..." : "Convert document →"}
-                </button>
+                </Button>
               </div>
-            </div>
+            </Card>
           ) : null}
 
           {message && !isConverting ? (
-            <p
-              className={`mt-4 rounded-lg border px-3 py-2.5 text-sm ${
+            <Alert
+              className={
                 progress === 100
-                  ? "border-[#c9e7d7] bg-[#f2faf6] text-[#247c55]"
-                  : "border-[#f3d6d3] bg-[#fdf3f2] text-[#a4453d]"
-              }`}
+                  ? "mt-4 border-success/30 bg-success/5"
+                  : "mt-4 border-destructive/30 bg-destructive/5"
+              }
+              variant={progress === 100 ? "default" : "destructive"}
             >
-              {message}
-            </p>
+              <AlertDescription
+                className={progress === 100 ? "text-success" : undefined}
+              >
+                {message}
+              </AlertDescription>
+            </Alert>
           ) : null}
         </form>
       </section>

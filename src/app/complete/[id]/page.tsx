@@ -4,6 +4,11 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { AppHeader } from "@/app/components/app-header";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
 import type { StoredDocumentJob } from "@/lib/types";
 
 type DocumentPayload = {
@@ -95,13 +100,13 @@ export default function CompletePage() {
   ];
 
   return (
-    <main className="flex min-h-screen flex-col bg-[#f6f6f8] text-[#1b1d22]">
+    <main className="flex min-h-screen flex-col bg-background text-foreground">
       <AppHeader activeStep="export" status={message ?? "Ready to export"} />
 
       <section className="flex flex-1 justify-center px-5 py-10 sm:py-14">
         <div className="w-full max-w-[760px]">
           <div className="text-center">
-            <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#e6f4ec] text-2xl font-semibold text-[#2e9e6b]">
+            <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-success/10 text-2xl font-semibold text-success">
               ✓
             </span>
             <h1 className="mt-4 text-[26px] font-semibold leading-tight">
@@ -120,28 +125,27 @@ export default function CompletePage() {
               { value: attentionCount, label: "Needs attention" },
               { value: pageCount, label: "Source pages" },
             ].map((stat) => (
-              <div
-                className="rounded-[10px] border border-[#e5e6ea] bg-white px-4 py-3.5"
-                key={stat.label}
-              >
+              <Card className="rounded-[10px] px-4 py-3.5" key={stat.label}>
                 <p className="text-[22px] font-semibold">{stat.value}</p>
                 <p className="mt-0.5 text-[11px] text-[#8b8f9a]">
                   {stat.label}
                 </p>
-              </div>
+              </Card>
             ))}
           </div>
 
           {attentionCount > 0 ? (
-            <div className="mt-4 rounded-lg border border-[#f3e3bd] bg-[#fdf6e8] px-4 py-3 text-xs leading-5 text-[#8a5a12]">
-              The export contains <strong>{attentionCount} TODO / Unclear markers</strong>.
-              Docutor keeps ambiguous source details visible instead of filling
-              them silently.
-            </div>
+            <Alert className="mt-4 border-warning/30 bg-warning/5">
+              <AlertDescription className="text-warning">
+                The export contains <strong>{attentionCount} TODO / Unclear markers</strong>.
+                Docutor keeps ambiguous source details visible instead of filling
+                them silently.
+              </AlertDescription>
+            </Alert>
           ) : null}
 
-          <div className="mt-5 overflow-hidden rounded-[10px] border border-[#e5e6ea] bg-white">
-            <div className="flex items-center justify-between gap-3 border-b border-[#f0f1f4] px-4 py-3">
+          <Card className="mt-5 gap-0 rounded-[10px] py-0">
+            <div className="flex items-center justify-between gap-3 px-4 py-3">
               <div>
                 <p className="text-xs font-semibold tracking-[0.04em] text-[#6b6f7b]">
                   EXPORT PACKAGE
@@ -150,52 +154,56 @@ export default function CompletePage() {
                   Reviewed content bundled for downstream agent workflows
                 </p>
               </div>
-              <span className="rounded bg-[#e6f4ec] px-2 py-1 text-[11px] font-semibold text-[#2e9e6b]">
+              <Badge className="bg-success/10 text-success">
                 Ready for agents
-              </span>
+              </Badge>
             </div>
+            <Separator />
 
-            {exportFiles.map((file) => (
-              <div
-                className="flex items-center gap-3 border-b border-[#f6f6f8] px-4 py-3 last:border-b-0"
-                key={file.name}
-              >
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-[#eef0fc] text-xs font-bold text-[#4c5fd5]">
-                  {file.type === "Folder" ? "/" : "≡"}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-mono text-xs font-medium">
-                    {file.name}
-                  </p>
-                  <p className="mt-0.5 truncate text-[11px] text-[#9aa0ab]">
-                    {file.detail}
-                  </p>
+            {exportFiles.map((file, index) => (
+              <div key={file.name}>
+                <div className="flex items-center gap-3 px-4 py-3">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-accent text-xs font-bold text-accent-foreground">
+                    {file.type === "Folder" ? "/" : "≡"}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-mono text-xs font-medium">
+                      {file.name}
+                    </p>
+                    <p className="mt-0.5 truncate text-[11px] text-[#9aa0ab]">
+                      {file.detail}
+                    </p>
+                  </div>
+                  <span className="text-[11px] text-[#9aa0ab]">{file.type}</span>
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-success/10 text-[11px] text-success">
+                    ✓
+                  </span>
                 </div>
-                <span className="text-[11px] text-[#9aa0ab]">{file.type}</span>
-                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#e6f4ec] text-[11px] text-[#2e9e6b]">
-                  ✓
-                </span>
+                {index < exportFiles.length - 1 ? <Separator /> : null}
               </div>
             ))}
-          </div>
+          </Card>
 
           <div className="mt-5 flex flex-col gap-3 sm:flex-row">
-            <button
-              className="flex-1 rounded-lg bg-[#4c5fd5] px-4 py-3 text-sm font-semibold text-white hover:bg-[#3f51c0] disabled:bg-[#c9ccd4]"
+            <Button
+              className="flex-1 py-3 text-sm font-semibold"
               disabled={acceptedCount === 0}
               onClick={() => downloadExport("markdown")}
+              size="lg"
               type="button"
             >
               ↓ Download Markdown
-            </button>
-            <button
-              className="flex-1 rounded-lg border border-[#dcdee4] bg-white px-4 py-3 text-sm font-semibold text-[#1b1d22] hover:border-[#4c5fd5] hover:text-[#4c5fd5] disabled:text-[#b4b8c0]"
+            </Button>
+            <Button
+              className="flex-1 py-3 text-sm font-semibold"
               disabled={acceptedCount === 0}
               onClick={() => downloadExport("zip")}
+              size="lg"
               type="button"
+              variant="outline"
             >
               ↓ Download ZIP package
-            </button>
+            </Button>
           </div>
 
           <div className="mt-5 flex justify-center gap-5 text-xs">

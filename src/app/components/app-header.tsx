@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Badge } from "@/components/ui/badge";
 
 type AppStep = "upload" | "review" | "export";
 
@@ -42,15 +43,15 @@ export function AppHeader({
         >
           {steps.map((step, index) => (
             <div className="flex items-center gap-1 sm:gap-2" key={step.id}>
-              <span
-                className={`rounded-md px-2 py-1 font-medium sm:px-2.5 ${
+              <Badge
+                className={
                   activeStep === step.id
-                    ? "bg-[#eef0fc] text-[#4c5fd5]"
-                    : "text-[#9aa0ab]"
-                }`}
+                    ? "bg-accent text-accent-foreground"
+                    : "bg-transparent text-[#9aa0ab]"
+                }
               >
                 {index + 1}&nbsp; {step.label}
-              </span>
+              </Badge>
               {index < steps.length - 1 ? (
                 <span className="text-[#c9ccd4]">→</span>
               ) : null}
@@ -60,7 +61,7 @@ export function AppHeader({
 
         {status ? (
           <div className="hidden min-w-0 items-center gap-2 text-xs text-[#6b6f7b] lg:flex">
-            <span className="h-2 w-2 shrink-0 rounded-full bg-[#2e9e6b]" />
+            <span className="h-2 w-2 shrink-0 rounded-full bg-success" />
             <span className="truncate">{status}</span>
           </div>
         ) : null}

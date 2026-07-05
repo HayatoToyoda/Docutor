@@ -4,6 +4,13 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useId, useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import { AppHeader } from "@/app/components/app-header";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
+import { Separator } from "@/components/ui/separator";
+import { Textarea } from "@/components/ui/textarea";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import type {
   DiagramSection,
   ReviewSection,
@@ -29,15 +36,22 @@ function isDiagramSection(
 
 function statusTone(status: ReviewSection["reviewStatus"]) {
   if (status === "accepted") {
-    return "bg-[#e6f4ec] text-[#2e9e6b]";
+    return "bg-success/10 text-success";
   }
   if (status === "rejected") {
-    return "bg-[#fdf3f2] text-[#c4554d]";
+    return "bg-destructive/10 text-destructive";
   }
   if (status === "regenerating") {
-    return "bg-[#fdf6e8] text-[#a46b14]";
+    return "bg-warning/10 text-warning";
   }
-  return "bg-[#f0f1f4] text-[#6b6f7b]";
+  return "bg-muted text-muted-foreground";
+}
+
+function statusDotClass(status: ReviewSection["reviewStatus"]) {
+  if (status === "accepted") return "bg-success";
+  if (status === "rejected") return "bg-destructive";
+  if (status === "regenerating") return "bg-warning";
+  return "bg-[#9aa0ab]";
 }
 
 function statusLabel(status: ReviewSection["reviewStatus"]) {
@@ -221,13 +235,9 @@ function DrawioEditor({
         src="https://embed.diagrams.net/?embed=1&proto=json&spin=1&libraries=1&noExitBtn=1&saveAndExit=0"
         title={title}
       />
-      <button
-        className="rounded-md border border-[#dcdee4] bg-white px-3 py-1.5 text-sm font-medium text-[#4a4e58] hover:border-[#4c5fd5] hover:text-[#4c5fd5]"
-        onClick={() => onSave(xml)}
-        type="button"
-      >
+      <Button onClick={() => onSave(xml)} type="button" variant="outline">
         Save draw.io XML
-      </button>
+      </Button>
     </div>
   );
 }
@@ -370,14 +380,14 @@ export default function ReviewPage() {
     sections.length === 0 ? 0 : Math.round((reviewedCount / sections.length) * 100);
 
   return (
-    <main className="flex min-h-screen flex-col bg-[#f6f6f8] text-[#1b1d22]">
+    <main className="flex min-h-screen flex-col bg-background text-foreground">
       <AppHeader
         activeStep="review"
         status={message ?? `${acceptedCount} sections accepted`}
       />
 
       <div className="grid min-h-0 flex-1 lg:h-[calc(100vh-56px)] lg:grid-cols-[292px_minmax(0,1fr)]">
-        <aside className="flex min-h-0 flex-col border-r border-[#e5e6ea] bg-white">
+        <aside className="flex min-h-0 flex-col border-r border-border bg-card">
           <div className="border-b border-[#f0f1f4] p-4">
             <p className="truncate text-sm font-semibold">
               {reviewDocument?.sourceFileName ?? job?.sourceFileName ?? "Document"}
@@ -385,12 +395,7 @@ export default function ReviewPage() {
             <p className="mt-1 text-xs text-[#8b8f9a]">
               {sections.length} sections · {acceptedCount} accepted
             </p>
-            <div className="mt-3 h-1 overflow-hidden rounded-full bg-[#f0f1f4]">
-              <div
-                className="h-full rounded-full bg-[#2e9e6b] transition-all"
-                style={{ width: `${progress}%` }}
-              />
-            </div>
+            <Progress className="mt-3" value={progress} />
           </div>
 
           <div className="min-h-0 flex-1 overflow-y-auto p-2">
@@ -398,7 +403,7 @@ export default function ReviewPage() {
               <button
                 className={`mb-0.5 w-full rounded-lg border px-3 py-2.5 text-left transition ${
                   selectedSection?.id === section.id
-                    ? "border-[#c7cdf1] bg-[#eef0fc]"
+                    ? "border-[#c7cdf1] bg-accent"
                     : "border-transparent hover:bg-[#f3f4f8]"
                 }`}
                 key={section.id}
@@ -413,15 +418,9 @@ export default function ReviewPage() {
                     {typeLabel(section)}
                   </span>
                   <span
-                    className={`h-2 w-2 shrink-0 rounded-full ${
-                      section.reviewStatus === "accepted"
-                        ? "bg-[#2e9e6b]"
-                        : section.reviewStatus === "rejected"
-                          ? "bg-[#c4554d]"
-                          : section.reviewStatus === "regenerating"
-                            ? "bg-[#b7791f]"
-                            : "bg-[#9aa0ab]"
-                    }`}
+                    className={`h-2 w-2 shrink-0 rounded-full ${statusDotClass(
+                      section.reviewStatus,
+                    )}`}
                   />
                 </span>
                 <span className="mt-1.5 block text-[13px] font-medium leading-5">
@@ -443,16 +442,12 @@ export default function ReviewPage() {
                   <div className="flex flex-wrap items-start justify-between gap-4">
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="rounded bg-[#eef0fc] px-2 py-1 text-[10px] font-bold tracking-[0.07em] text-[#4c5fd5]">
+                        <Badge className="bg-accent text-accent-foreground">
                           {typeLabel(selectedSection)}
-                        </span>
-                        <span
-                          className={`rounded px-2 py-1 text-[11px] font-semibold ${statusTone(
-                            selectedSection.reviewStatus,
-                          )}`}
-                        >
+                        </Badge>
+                        <Badge className={statusTone(selectedSection.reviewStatus)}>
                           {statusLabel(selectedSection.reviewStatus)}
-                        </span>
+                        </Badge>
                       </div>
                       <h1 className="mt-2 text-xl font-semibold">
                         {selectedSection.title}
@@ -463,26 +458,26 @@ export default function ReviewPage() {
                     </div>
 
                     <div className="flex flex-wrap gap-2">
-                      <button
-                        className="rounded-md border border-[#dcdee4] bg-white px-3 py-2 text-xs font-medium text-[#4a4e58] hover:border-[#4c5fd5]"
+                      <Button
                         onClick={() => regenerateSection(selectedSection.id)}
                         type="button"
+                        variant="outline"
                       >
                         ↻ Regenerate
-                      </button>
-                      <button
-                        className="rounded-md border border-[#efc9c5] bg-white px-3 py-2 text-xs font-medium text-[#c4554d] hover:bg-[#fdf7f6]"
+                      </Button>
+                      <Button
                         onClick={() =>
                           saveSection(selectedSection.id, {
                             reviewStatus: "rejected",
                           })
                         }
                         type="button"
+                        variant="destructive"
                       >
                         Reject
-                      </button>
-                      <button
-                        className="rounded-md border border-[#2e9e6b] bg-[#2e9e6b] px-4 py-2 text-xs font-semibold text-white hover:bg-[#27875b]"
+                      </Button>
+                      <Button
+                        className="bg-success text-success-foreground hover:bg-success/90"
                         onClick={() =>
                           saveSection(selectedSection.id, {
                             reviewStatus: "accepted",
@@ -491,24 +486,25 @@ export default function ReviewPage() {
                         type="button"
                       >
                         ✓ Accept
-                      </button>
+                      </Button>
                     </div>
                   </div>
 
                   {isDiagramSection(selectedSection) ? (
                     <div className="mt-4 space-y-4">
                       <div className="grid gap-4 xl:grid-cols-2">
-                        <div className="overflow-hidden rounded-[10px] border border-[#e5e6ea] bg-white">
-                          <div className="border-b border-[#f0f1f4] px-3.5 py-2.5 text-xs font-semibold tracking-[0.04em] text-[#6b6f7b]">
+                        <Card className="gap-0 rounded-[10px] py-0">
+                          <div className="px-3.5 py-2.5 text-xs font-semibold tracking-[0.04em] text-[#6b6f7b]">
                             ORIGINAL SOURCE — PAGE {selectedSection.sourcePage}
                           </div>
+                          <Separator />
                           <div className="min-h-[330px] whitespace-pre-wrap bg-[#fafafb] p-4 text-[13px] leading-7 text-[#4a4e58]">
                             {selectedSection.originalText ||
                               "The original visual was captured from the source document. Compare its structure with the generated diagram."}
                           </div>
-                        </div>
-                        <div className="overflow-hidden rounded-[10px] border border-[#e5e6ea] bg-white">
-                          <div className="flex items-center justify-between border-b border-[#f0f1f4] px-3.5 py-2.5">
+                        </Card>
+                        <Card className="gap-0 rounded-[10px] py-0">
+                          <div className="flex items-center justify-between px-3.5 py-2.5">
                             <span className="text-xs font-semibold tracking-[0.04em] text-[#6b6f7b]">
                               GENERATED PREVIEW
                             </span>
@@ -516,6 +512,7 @@ export default function ReviewPage() {
                               {selectedSection.format}
                             </span>
                           </div>
+                          <Separator />
                           {selectedSection.format === "mermaid" ? (
                             <MermaidPreview code={selectedSection.generatedCode} />
                           ) : (
@@ -523,16 +520,17 @@ export default function ReviewPage() {
                               Open the draw.io editor below to inspect this diagram.
                             </div>
                           )}
-                        </div>
+                        </Card>
                       </div>
 
-                      <div className="overflow-hidden rounded-[10px] border border-[#e5e6ea] bg-white">
-                        <div className="border-b border-[#f0f1f4] px-3.5 py-2.5 text-xs font-semibold tracking-[0.04em] text-[#6b6f7b]">
+                      <Card className="gap-0 rounded-[10px] py-0">
+                        <div className="px-3.5 py-2.5 text-xs font-semibold tracking-[0.04em] text-[#6b6f7b]">
                           DIAGRAM SOURCE
                         </div>
+                        <Separator />
                         {selectedSection.format === "mermaid" ? (
-                          <textarea
-                            className="block h-64 w-full resize-y border-0 bg-[#fcfcfd] p-4 font-mono text-xs leading-6 text-[#1b1d22] outline-none"
+                          <Textarea
+                            className="h-64 resize-y rounded-none border-0 bg-[#fcfcfd] p-4 font-mono text-xs leading-6 text-foreground focus-visible:ring-0"
                             onBlur={() =>
                               saveSection(selectedSection.id, {
                                 generatedCode: selectedSection.generatedCode,
@@ -564,42 +562,47 @@ export default function ReviewPage() {
                             />
                           </div>
                         ) : null}
-                      </div>
+                      </Card>
                     </div>
                   ) : (
                     <div className="mt-4 grid items-start gap-4 xl:grid-cols-[5fr_7fr]">
-                      <div className="overflow-hidden rounded-[10px] border border-[#e5e6ea] bg-white">
-                        <div className="border-b border-[#f0f1f4] px-3.5 py-2.5 text-xs font-semibold tracking-[0.04em] text-[#6b6f7b]">
+                      <Card className="gap-0 rounded-[10px] py-0">
+                        <div className="px-3.5 py-2.5 text-xs font-semibold tracking-[0.04em] text-[#6b6f7b]">
                           ORIGINAL SOURCE — PAGE {selectedSection.sourcePage}
                         </div>
+                        <Separator />
                         <div className="min-h-[320px] whitespace-pre-wrap bg-[#fafafb] p-4 text-[13px] leading-7 text-[#4a4e58]">
                           {selectedSection.originalText ||
                             "Original source text was not included for this section."}
                         </div>
-                      </div>
+                      </Card>
 
-                      <div className="overflow-hidden rounded-[10px] border border-[#e5e6ea] bg-white">
-                        <div className="flex items-center justify-between border-b border-[#f0f1f4] px-3.5 py-2">
+                      <Card className="gap-0 rounded-[10px] py-0">
+                        <div className="flex items-center justify-between px-3.5 py-2">
                           <span className="text-xs font-semibold tracking-[0.04em] text-[#6b6f7b]">
                             GENERATED MARKDOWN
                           </span>
-                          <div className="flex rounded-md bg-[#f0f1f4] p-0.5">
+                          <ToggleGroup
+                            className="rounded-md bg-secondary p-0.5"
+                            onValueChange={(values) => {
+                              const next = values[0];
+                              if (next) setViewMode(next as "preview" | "edit");
+                            }}
+                            spacing={0}
+                            value={[viewMode]}
+                          >
                             {(["preview", "edit"] as const).map((mode) => (
-                              <button
-                                className={`rounded-[5px] px-3 py-1 text-xs font-medium ${
-                                  viewMode === mode
-                                    ? "bg-white text-[#1b1d22] shadow-sm"
-                                    : "text-[#6b6f7b]"
-                                }`}
+                              <ToggleGroupItem
+                                className="rounded-[5px] px-3 py-1 text-xs font-medium hover:bg-transparent data-pressed:bg-white data-pressed:text-foreground data-pressed:shadow-sm"
                                 key={mode}
-                                onClick={() => setViewMode(mode)}
-                                type="button"
+                                value={mode}
                               >
                                 {mode === "preview" ? "Preview" : "Edit"}
-                              </button>
+                              </ToggleGroupItem>
                             ))}
-                          </div>
+                          </ToggleGroup>
                         </div>
+                        <Separator />
                         {viewMode === "preview" ? (
                           <div className="docutor-markdown min-h-[320px] p-5">
                             <ReactMarkdown>
@@ -607,8 +610,8 @@ export default function ReviewPage() {
                             </ReactMarkdown>
                           </div>
                         ) : (
-                          <textarea
-                            className="block h-[420px] w-full resize-y border-0 bg-[#fcfcfd] p-4 font-mono text-xs leading-6 text-[#1b1d22] outline-none"
+                          <Textarea
+                            className="h-[420px] resize-y rounded-none border-0 bg-[#fcfcfd] p-4 font-mono text-xs leading-6 text-foreground focus-visible:ring-0"
                             onBlur={() =>
                               saveSection(selectedSection.id, {
                                 generatedMarkdown:
@@ -623,48 +626,48 @@ export default function ReviewPage() {
                             value={selectedSection.generatedMarkdown}
                           />
                         )}
-                      </div>
+                      </Card>
                     </div>
                   )}
                 </>
               ) : (
-                <div className="rounded-[10px] border border-[#e5e6ea] bg-white p-6 text-sm text-[#6b6f7b]">
+                <Card className="rounded-[10px] p-6 text-sm text-[#6b6f7b]">
                   No review sections are available.
-                </div>
+                </Card>
               )}
             </div>
           </div>
 
-          <footer className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-[#e5e6ea] bg-white px-4 py-3 sm:px-7">
+          <footer className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-border bg-card px-4 py-3 sm:px-7">
             <div className="flex items-center gap-3 text-xs text-[#6b6f7b]">
               <span>
                 {reviewedCount} of {sections.length} sections reviewed
               </span>
-              <button
-                className="font-medium text-[#4c5fd5] disabled:text-[#b4b8c0]"
+              <Button
                 disabled={acceptedCount === 0}
                 onClick={() => downloadExport("markdown")}
                 type="button"
+                variant="link"
               >
                 Download Markdown
-              </button>
-              <button
-                className="font-medium text-[#4c5fd5] disabled:text-[#b4b8c0]"
+              </Button>
+              <Button
                 disabled={acceptedCount === 0}
                 onClick={() => downloadExport("zip")}
                 type="button"
+                variant="link"
               >
                 Download ZIP
-              </button>
+              </Button>
             </div>
-            <button
-              className="rounded-lg bg-[#4c5fd5] px-4 py-2.5 text-xs font-semibold text-white hover:bg-[#3f51c0] disabled:bg-[#c9ccd4]"
+            <Button
               disabled={sections.length === 0 || acceptedCount !== sections.length}
               onClick={() => router.push(`/complete/${params.id}`)}
+              size="lg"
               type="button"
             >
               Complete review →
-            </button>
+            </Button>
           </footer>
         </section>
       </div>
