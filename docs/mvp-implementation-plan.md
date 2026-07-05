@@ -35,7 +35,7 @@ Team execution rule:
 - [x] Add regenerate section/diagram flow.
 - [x] Add Markdown and ZIP exports.
 - [x] Add Codex App Server local adapter behind an env flag.
-- [ ] Add fixtures, tests, browser smoke checks, and final polish.
+- [x] Add fixtures, tests, browser smoke checks, and final polish.
 
 ## Key Implementation Changes
 

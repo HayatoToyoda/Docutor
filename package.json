@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "test": "vitest run"
   },
   "dependencies": {
     "jszip": "^3.10.1",
@@ -26,7 +27,8 @@
     "eslint": "^9.39.1",
     "eslint-config-next": "latest",
     "tailwindcss": "latest",
-    "typescript": "latest"
+    "typescript": "latest",
+    "vitest": "^4.1.9"
   },
   "packageManager": "pnpm@11.7.0"
 }

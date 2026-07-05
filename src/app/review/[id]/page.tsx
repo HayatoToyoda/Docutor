@@ -1,6 +1,6 @@
 "use client";
 
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useEffect, useId, useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import type {
@@ -220,6 +220,7 @@ function DrawioEditor({
 
 export default function ReviewPage() {
   const params = useParams<{ id: string }>();
+  const router = useRouter();
   const [job, setJob] = useState<StoredDocumentJob | null>(null);
   const [selectedSectionId, setSelectedSectionId] = useState<string | null>(
     null,
@@ -362,6 +363,14 @@ export default function ReviewPage() {
             <div className="text-sm text-slate-600">
               {acceptedCount} / {sections.length} accepted
             </div>
+            <button
+              className="rounded bg-cyan-700 px-3 py-1.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-slate-300"
+              disabled={sections.length === 0 || acceptedCount !== sections.length}
+              onClick={() => router.push(`/complete/${params.id}`)}
+              type="button"
+            >
+              Complete
+            </button>
             <button
               className="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
               disabled={acceptedCount === 0}
