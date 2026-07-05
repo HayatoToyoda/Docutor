@@ -28,7 +28,7 @@ Team execution rule:
 - [x] Implement PPTX extraction plus LibreOffice PDF/slide rendering.
 - [x] Add OpenAI provider, structured output schema, and conversion prompts.
 - [x] Wire upload-to-real-conversion flow.
-- [ ] Build review screen with section list, Markdown editor/preview, accept/reject.
+- [x] Build review screen with section list, Markdown editor/preview, accept/reject.
 - [ ] Add Mermaid editor and preview.
 - [ ] Add `DiagramIR` to Mermaid/draw.io generation.
 - [ ] Add diagrams.net embedded editor and XML persistence.
