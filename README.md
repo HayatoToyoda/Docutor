@@ -16,7 +16,9 @@ that both humans and AI agents can inspect, correct, and use.
 
 ## Product Demo
 
-[Watch the 25-second Docutor walkthrough](docs/assets/how-docutor-works.mp4)
+[![Docutor product walkthrough](docs/assets/how-docutor-works.gif)](docs/assets/how-docutor-works.mp4)
+
+[Watch with sound and full resolution](docs/assets/how-docutor-works.mp4)
 
 ## Core Product Flow
 
