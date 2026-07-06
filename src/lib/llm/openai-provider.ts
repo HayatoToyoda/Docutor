@@ -22,6 +22,7 @@ import type {
   NormalizedDocument,
   ReviewDocument,
   ReviewSection,
+  SourceFileType,
 } from "@/lib/types";
 
 const DEFAULT_MODEL = "gpt-5.5";
@@ -69,6 +70,46 @@ async function buildUserContent(document: NormalizedDocument) {
   return content;
 }
 
+function createClient() {
+  if (!process.env.OPENAI_API_KEY) {
+    throw new OpenAIProviderError(
+      "OPENAI_API_KEY is required for the OpenAI conversion provider.",
+    );
+  }
+
+  return new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+}
+
+async function convertContent(
+  source: NormalizedDocument,
+  content: ResponseInputContent[],
+) {
+  const response = await createClient().responses.parse({
+    model: process.env.OPENAI_MODEL ?? DEFAULT_MODEL,
+    input: [
+      {
+        role: "system",
+        content: DOCUTOR_SYSTEM_PROMPT,
+      },
+      {
+        role: "user",
+        content,
+      },
+    ],
+    text: {
+      format: zodTextFormat(reviewDocumentSchema, "review_document"),
+    },
+  });
+
+  if (!response.output_parsed) {
+    throw new OpenAIProviderError(
+      "OpenAI conversion did not return a parsed review document.",
+    );
+  }
+
+  return normalizeReviewDocument(response.output_parsed, source);
+}
+
 function normalizeReviewDocument(
   output: ReviewDocumentOutput,
   source: NormalizedDocument,
@@ -104,55 +145,53 @@ function normalizeReviewSection(
   } as ReviewSection;
 }
 
+export async function convertFileWithOpenAI(input: {
+  id: string;
+  sourceFileName: string;
+  fileType: SourceFileType;
+  mimeType: string;
+  data: Buffer;
+}) {
+  const source: NormalizedDocument = {
+    id: input.id,
+    sourceFileName: input.sourceFileName,
+    fileType: input.fileType,
+    createdAt: new Date().toISOString(),
+    pages: [],
+    assets: [],
+    warnings: [],
+  };
+  const dataUrl = `data:${input.mimeType};base64,${input.data.toString("base64")}`;
+  const fileContent: ResponseInputContent =
+    input.fileType === "image"
+      ? {
+          type: "input_image",
+          image_url: dataUrl,
+          detail: "high",
+        }
+      : {
+          type: "input_file",
+          filename: input.sourceFileName,
+          file_data: dataUrl,
+        };
+
+  return convertContent(source, [
+    fileContent,
+    {
+      type: "input_text",
+      text: `${buildDocumentConversionPrompt(source)}\n\nThe source file is attached directly. Read its contents from the attached file. Use an empty string for sourceImage when no persistent source image URL is available. Do not invent asset paths.`,
+    },
+  ]);
+}
+
 export function createOpenAIProvider(): ConversionProvider {
   return {
     name: "openai",
     async convert(input) {
-      if (!process.env.OPENAI_API_KEY) {
-        throw new OpenAIProviderError(
-          "OPENAI_API_KEY is required for the OpenAI conversion provider.",
-        );
-      }
-
-      const client = new OpenAI({
-        apiKey: process.env.OPENAI_API_KEY,
-      });
-
-      const response = await client.responses.parse({
-        model: process.env.OPENAI_MODEL ?? DEFAULT_MODEL,
-        input: [
-          {
-            role: "system",
-            content: DOCUTOR_SYSTEM_PROMPT,
-          },
-          {
-            role: "user",
-            content: await buildUserContent(input),
-          },
-        ],
-        text: {
-          format: zodTextFormat(reviewDocumentSchema, "review_document"),
-        },
-      });
-
-      if (!response.output_parsed) {
-        throw new OpenAIProviderError(
-          "OpenAI conversion did not return a parsed review document.",
-        );
-      }
-
-      return normalizeReviewDocument(response.output_parsed, input);
+      return convertContent(input, await buildUserContent(input));
     },
     async regenerateSection(input, section) {
-      if (!process.env.OPENAI_API_KEY) {
-        throw new OpenAIProviderError(
-          "OPENAI_API_KEY is required for the OpenAI conversion provider.",
-        );
-      }
-
-      const client = new OpenAI({
-        apiKey: process.env.OPENAI_API_KEY,
-      });
+      const client = createClient();
       const content = await buildUserContent(input);
       content.push({
         type: "input_text",
