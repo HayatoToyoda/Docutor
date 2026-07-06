@@ -12,6 +12,15 @@ import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { stripMermaidFence } from "@/lib/diagrams/diagram-ir";
+import {
+  buildClientExport,
+  downloadBlob,
+  isClientDocumentId,
+  patchClientSection,
+  readClientDocument,
+  saveClientDocument,
+  type ClientSectionPatch as SectionPatch,
+} from "@/lib/client-document-store";
 import type {
   DiagramSection,
   ReviewSection,
@@ -20,13 +29,6 @@ import type {
 
 type DocumentPayload = {
   document: StoredDocumentJob;
-};
-
-type SectionPatch = {
-  generatedMarkdown?: string;
-  generatedCode?: string;
-  drawioXml?: string;
-  reviewStatus?: ReviewSection["reviewStatus"];
 };
 
 function isDiagramSection(
@@ -267,6 +269,19 @@ export default function ReviewPage() {
     let cancelled = false;
 
     async function loadDocument() {
+      if (isClientDocumentId(params.id)) {
+        const document = readClientDocument(params.id);
+        if (!document) {
+          setMessage("Document could not be loaded in this browser.");
+          return;
+        }
+        setJob(document);
+        setSelectedSectionId(
+          document.reviewDocument?.sections[0]?.id ?? null,
+        );
+        return;
+      }
+
       const response = await fetch(`/api/documents/${params.id}`);
       const payload = (await response.json()) as DocumentPayload;
 
@@ -295,21 +310,22 @@ export default function ReviewPage() {
         return current;
       }
 
-      return {
-        ...current,
-        reviewDocument: {
-          ...current.reviewDocument,
-          sections: current.reviewDocument.sections.map((section) =>
-            section.id === sectionId ? { ...section, ...patch } : section,
-          ),
-        },
-      };
+      const updated = patchClientSection(current, sectionId, patch);
+      if (isClientDocumentId(params.id)) {
+        saveClientDocument(updated);
+      }
+      return updated;
     });
   }
 
   async function saveSection(sectionId: string, patch: SectionPatch) {
     updateLocalSection(sectionId, patch);
     setMessage("Saving section...");
+
+    if (isClientDocumentId(params.id)) {
+      setMessage("Section saved in this browser.");
+      return;
+    }
 
     const response = await fetch(
       `/api/documents/${params.id}/sections/${sectionId}`,
@@ -334,6 +350,26 @@ export default function ReviewPage() {
     setMessage("Regenerating section...");
     updateLocalSection(sectionId, { reviewStatus: "regenerating" });
 
+    if (isClientDocumentId(params.id)) {
+      const section = sections.find((item) => item.id === sectionId);
+      if (!section) return;
+      updateLocalSection(
+        sectionId,
+        section.type === "diagram"
+          ? {
+              generatedCode: `${section.generatedCode}\n  %% Regenerated in hosted mode`,
+              generatedMarkdown: `\`\`\`mermaid\n${section.generatedCode}\n  %% Regenerated in hosted mode\n\`\`\``,
+              reviewStatus: "pending",
+            }
+          : {
+              generatedMarkdown: `${section.generatedMarkdown}\n\nTODO: Regenerated in hosted mode for review.`,
+              reviewStatus: "pending",
+            },
+      );
+      setMessage("Section regenerated in this browser.");
+      return;
+    }
+
     const response = await fetch(
       `/api/documents/${params.id}/sections/${sectionId}/regenerate?provider=mock`,
       { method: "POST" },
@@ -350,6 +386,17 @@ export default function ReviewPage() {
   }
 
   async function downloadExport(kind: "markdown" | "zip") {
+    if (job && isClientDocumentId(params.id)) {
+      try {
+        const result = await buildClientExport(job, kind);
+        downloadBlob(result.blob, result.fileName);
+        setMessage(`${kind.toUpperCase()} export downloaded.`);
+      } catch {
+        setMessage(`${kind.toUpperCase()} export failed.`);
+      }
+      return;
+    }
+
     const response = await fetch(
       `/api/documents/${params.id}/export/${kind}`,
       { method: "POST" },

@@ -9,6 +9,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import {
+  buildClientExport,
+  downloadBlob,
+  isClientDocumentId,
+  readClientDocument,
+} from "@/lib/client-document-store";
 import type { StoredDocumentJob } from "@/lib/types";
 
 type DocumentPayload = {
@@ -22,6 +28,16 @@ export default function CompletePage() {
 
   useEffect(() => {
     async function loadDocument() {
+      if (isClientDocumentId(params.id)) {
+        const document = readClientDocument(params.id);
+        if (document) {
+          setJob(document);
+        } else {
+          setMessage("Document could not be loaded in this browser.");
+        }
+        return;
+      }
+
       const response = await fetch(`/api/documents/${params.id}`);
       const payload = (await response.json()) as DocumentPayload;
       if (response.ok) {
@@ -35,6 +51,17 @@ export default function CompletePage() {
   }, [params.id]);
 
   async function downloadExport(kind: "markdown" | "zip") {
+    if (job && isClientDocumentId(params.id)) {
+      try {
+        const result = await buildClientExport(job, kind);
+        downloadBlob(result.blob, result.fileName);
+        setMessage(`${kind.toUpperCase()} export downloaded.`);
+      } catch {
+        setMessage(`${kind.toUpperCase()} export failed.`);
+      }
+      return;
+    }
+
     const response = await fetch(
       `/api/documents/${params.id}/export/${kind}`,
       { method: "POST" },

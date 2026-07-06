@@ -16,8 +16,14 @@ import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import {
+  createDemoDocument,
+  saveClientDocument,
+} from "@/lib/client-document-store";
+import type { StoredDocumentJob } from "@/lib/types";
 
 type Provider = "openai" | "mock";
+const MAX_HOSTED_UPLOAD_BYTES = 4 * 1024 * 1024;
 
 function formatBytes(bytes: number) {
   if (bytes < 1024 * 1024) {
@@ -63,15 +69,33 @@ export default function Home() {
       return;
     }
 
+    if (file.size > MAX_HOSTED_UPLOAD_BYTES) {
+      setMessage("File is too large. The hosted demo limit is 4 MB.");
+      return;
+    }
+
     setIsConverting(true);
     setProgress(24);
     setMessage("Uploading source document...");
 
     try {
+      if (provider === "mock") {
+        setProgress(68);
+        setMessage("Preparing browser-based demo content...");
+        const demoDocument = createDemoDocument(file);
+        saveClientDocument(demoDocument);
+        setProgress(100);
+        setMessage("Review workspace is ready.");
+        router.push(`/review/${demoDocument.id}`);
+        return;
+      }
+
       const formData = new FormData();
       formData.append("file", file);
 
-      const uploadResponse = await fetch("/api/documents", {
+      setProgress(52);
+      setMessage("Analyzing the document with OpenAI...");
+      const uploadResponse = await fetch("/api/convert-direct", {
         method: "POST",
         body: formData,
       });
@@ -81,23 +105,12 @@ export default function Home() {
         throw new Error(uploadPayload.error ?? "Upload failed.");
       }
 
-      const documentId = uploadPayload.document.id as string;
-      setProgress(68);
-      setMessage("Extracting text, tables, and diagrams...");
-
-      const convertResponse = await fetch(
-        `/api/documents/${documentId}/convert?provider=${provider}`,
-        { method: "POST" },
-      );
-      const convertPayload = await convertResponse.json();
-
-      if (!convertResponse.ok) {
-        throw new Error(convertPayload.error ?? "Conversion failed.");
-      }
+      const document = uploadPayload.document as StoredDocumentJob;
+      saveClientDocument(document);
 
       setProgress(100);
       setMessage("Review workspace is ready.");
-      router.push(`/review/${documentId}`);
+      router.push(`/review/${document.id}`);
     } catch (error) {
       setProgress(0);
       setMessage(error instanceof Error ? error.message : "Conversion failed.");
@@ -151,9 +164,28 @@ export default function Home() {
               Drop a file here, or click to browse
             </span>
             <span className="mt-1 text-xs text-[#8b8f9a]">
-              .pptx · .docx · .pdf · .png · .jpg — max 50 MB
+              .pptx · .docx · .pdf · .png · .jpg — max 4 MB
             </span>
           </button>
+
+          {!file ? (
+            <Button
+              className="mt-3 w-full"
+              onClick={() => {
+                const demoDocument = createDemoDocument({
+                  name: "docutor-demo.pdf",
+                  type: "application/pdf",
+                  size: 0,
+                });
+                saveClientDocument(demoDocument);
+                router.push(`/review/${demoDocument.id}`);
+              }}
+              type="button"
+              variant="outline"
+            >
+              Try with a sample document
+            </Button>
+          ) : null}
 
           {file ? (
             <Card className="mt-5 gap-0 rounded-[10px] py-0">
@@ -208,7 +240,7 @@ export default function Home() {
                       key={option}
                       value={option}
                     >
-                      {option === "openai" ? "OpenAI" : "Mock"}
+                      {option === "openai" ? "OpenAI" : "Demo"}
                     </ToggleGroupItem>
                   ))}
                 </ToggleGroup>
