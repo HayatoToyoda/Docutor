@@ -143,6 +143,9 @@ export type StoredDocumentJob = {
   normalizedDocument?: NormalizedDocument;
   reviewDocument?: ReviewDocument;
   error?: string;
+  // Single-copy data URL of the original upload for the direct flow's
+  // comparison view (avoids duplicating the image onto every section).
+  directSourceImage?: string;
 };
 
 export type PythonWorkerResult = {

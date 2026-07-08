@@ -16,6 +16,8 @@ function renderSection(section: ReviewSection) {
       blocks.push(
         `\`\`\`mermaid\n${stripMermaidFence(section.generatedCode)}\n\`\`\``,
       );
+    } else if (section.generatedMarkdown) {
+      blocks.push(section.generatedMarkdown.trim());
     } else {
       blocks.push("TODO: draw.io diagram exported as related asset.");
     }

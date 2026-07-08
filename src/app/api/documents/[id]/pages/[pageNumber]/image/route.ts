@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFile, realpath } from "node:fs/promises";
 import path from "node:path";
 import { jsonError } from "@/lib/server/http";
 import { documentDir, readDocumentJob } from "@/lib/server/storage";
@@ -39,15 +39,19 @@ export async function GET(_request: Request, context: RouteContext) {
 
   // Defense in depth: even though imagePath comes from our own Python
   // Worker output (not user input), verify it still resolves inside this
-  // document's directory before reading it from disk.
+  // document's directory before reading it from disk. readDocumentJob()
+  // above already validated `id`, so documentDir(id) cannot throw here.
+  // Resolve both paths through realpath (not just path.resolve) so a
+  // symlink inside the doc dir can't be used to escape it.
   let documentRoot: string;
+  let resolvedImagePath: string;
   try {
-    documentRoot = path.resolve(documentDir(id));
+    documentRoot = await realpath(documentDir(id));
+    resolvedImagePath = await realpath(path.resolve(page.imagePath));
   } catch {
-    return jsonError("Invalid document id.", 400);
+    return jsonError("Invalid asset path.", 404);
   }
 
-  const resolvedImagePath = path.resolve(page.imagePath);
   const relative = path.relative(documentRoot, resolvedImagePath);
 
   if (relative.startsWith("..") || path.isAbsolute(relative)) {

@@ -137,11 +137,18 @@ function normalizeReviewSection(
   output: ReviewSectionOutput,
   source: ReviewSection,
 ): ReviewSection {
+  const normalized = normalizeReviewSectionOutput(output);
+
   return {
-    ...normalizeReviewSectionOutput(output),
+    ...normalized,
     id: source.id,
     type: source.type,
     sourcePage: output.sourcePage || source.sourcePage,
+    // The model never has access to the original source image or text, so
+    // prefer the stored values whenever the model output is empty rather
+    // than letting an empty regeneration result erase them.
+    sourceImage: normalized.sourceImage || source.sourceImage,
+    originalText: normalized.originalText || source.originalText,
     reviewStatus: "pending",
   } as ReviewSection;
 }
@@ -187,15 +194,11 @@ export async function convertFileWithOpenAI(input: {
   if (input.fileType === "image") {
     // The direct-upload flow never runs the Python Worker, so the model has
     // no persistent page-image path to reference. The uploaded image itself
-    // *is* the single source page, so attach it directly for the original
-    // vs. generated comparison view.
-    return {
-      ...reviewDocument,
-      sections: reviewDocument.sections.map((section) => ({
-        ...section,
-        sourceImage: dataUrl,
-      })),
-    };
+    // *is* the single source page; the caller attaches it once as
+    // `directSourceImage` on the stored document rather than duplicating the
+    // data URL onto every section (which would blow the localStorage quota
+    // and the regeneration prompt's context window).
+    return reviewDocument;
   }
 
   return {

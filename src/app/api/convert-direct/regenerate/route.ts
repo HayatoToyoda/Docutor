@@ -1,13 +1,16 @@
 import { NextResponse } from "next/server";
-import {
-  OpenAIProviderError,
-  regenerateDirectSection,
-} from "@/lib/llm/openai-provider";
+import { regenerateDirectSection } from "@/lib/llm/openai-provider";
 import { jsonError } from "@/lib/server/http";
 import type { ReviewSection, SourceFileType } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
+
+// With the client stripping sourceImage data URLs before sending sections
+// (see the review page), legitimate request bodies stay small; this caps
+// abusive/oversized payloads before they're even parsed as JSON.
+const MAX_BODY_CHARS = 1_000_000;
+const MAX_SECTIONS = 200;
 
 type RegenerateRequestBody = {
   title?: string;
@@ -18,7 +21,18 @@ type RegenerateRequestBody = {
 };
 
 export async function POST(request: Request) {
-  const body = (await request.json()) as RegenerateRequestBody;
+  const rawBody = await request.text();
+
+  if (rawBody.length > MAX_BODY_CHARS) {
+    return jsonError("Request body is too large.", 413);
+  }
+
+  let body: RegenerateRequestBody;
+  try {
+    body = JSON.parse(rawBody) as RegenerateRequestBody;
+  } catch {
+    return jsonError("Request body must be valid JSON.", 400);
+  }
 
   if (
     !body.title ||
@@ -30,6 +44,10 @@ export async function POST(request: Request) {
     return jsonError(
       "title, sourceFileName, sourceFileType, sections, and sectionId are required.",
     );
+  }
+
+  if (body.sections.length > MAX_SECTIONS) {
+    return jsonError(`sections cannot contain more than ${MAX_SECTIONS} items.`);
   }
 
   const section = body.sections.find(
@@ -55,11 +73,7 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error(error);
     const message =
-      error instanceof OpenAIProviderError
-        ? error.message
-        : error instanceof Error
-          ? error.message
-          : "Section regeneration failed.";
+      error instanceof Error ? error.message : "Section regeneration failed.";
     return jsonError(message, 500);
   }
 }

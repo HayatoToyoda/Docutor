@@ -4,6 +4,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useId, useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import { AppHeader } from "@/app/components/app-header";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -83,6 +84,12 @@ function resolveSourceImageUrl(
 
   if (section.sourceImage?.startsWith("data:")) {
     return section.sourceImage;
+  }
+
+  // All sections of a direct image doc come from the single uploaded image
+  // (page 1), captured once on the job instead of duplicated per section.
+  if (job.directSourceImage) {
+    return job.directSourceImage;
   }
 
   const page = job.normalizedDocument?.pages.find(
@@ -410,6 +417,15 @@ export default function ReviewPage() {
       if (!reviewDocument) return;
 
       try {
+        // Don't upload megabytes of base64 to regenerate a text section: the
+        // server strips these the same way before embedding sections into
+        // the LLM prompt (see buildDirectSectionRegenerationPrompt).
+        const requestSections = reviewDocument.sections.map((item) =>
+          item.sourceImage?.startsWith("data:")
+            ? ({ ...item, sourceImage: "" } as ReviewSection)
+            : item,
+        );
+
         const response = await fetch("/api/convert-direct/regenerate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -417,7 +433,7 @@ export default function ReviewPage() {
             title: reviewDocument.title,
             sourceFileName: reviewDocument.sourceFileName,
             sourceFileType: reviewDocument.sourceFileType,
-            sections: reviewDocument.sections,
+            sections: requestSections,
             sectionId,
           }),
         });
@@ -432,7 +448,18 @@ export default function ReviewPage() {
           return;
         }
 
-        updateLocalSection(sectionId, payload.section);
+        // The regenerated section's sourceImage/originalText may come back
+        // empty (the request stripped the image, and the model has no
+        // better source text), so keep the previously stored values rather
+        // than letting an empty response erase them.
+        const previousSection = sections.find((item) => item.id === sectionId);
+        const regeneratedSection = {
+          ...payload.section,
+          sourceImage: payload.section.sourceImage || previousSection?.sourceImage,
+          originalText: payload.section.originalText || previousSection?.originalText,
+        } as ReviewSection;
+
+        updateLocalSection(sectionId, regeneratedSection);
         setMessage("Section regenerated.");
       } catch {
         updateLocalSection(sectionId, { reviewStatus: "pending" });
@@ -443,19 +470,35 @@ export default function ReviewPage() {
 
     // Server-managed documents regenerate through the configured default
     // provider (DOCUTOR_LLM_PROVIDER) rather than a hardcoded mock provider.
-    const response = await fetch(
-      `/api/documents/${params.id}/sections/${sectionId}/regenerate`,
-      { method: "POST" },
-    );
-    const payload = (await response.json()) as DocumentPayload;
+    try {
+      const response = await fetch(
+        `/api/documents/${params.id}/sections/${sectionId}/regenerate`,
+        { method: "POST" },
+      );
+      const payload = (await response.json()) as {
+        document?: StoredDocumentJob;
+        error?: string;
+      };
 
-    if (!response.ok) {
+      if (!response.ok) {
+        // A 500 here still carries the reverted document (status back to
+        // "pending", error appended to notes), so apply it instead of
+        // leaving the UI stuck showing "regenerating".
+        if (payload.document) {
+          setJob(payload.document);
+        }
+        setMessage(payload.error ?? "Section regeneration failed.");
+        return;
+      }
+
+      if (payload.document) {
+        setJob(payload.document);
+      }
+      setMessage("Section regenerated.");
+    } catch {
+      updateLocalSection(sectionId, { reviewStatus: "pending" });
       setMessage("Section regeneration failed.");
-      return;
     }
-
-    setJob(payload.document);
-    setMessage("Section regenerated.");
   }
 
   async function downloadExport(kind: "markdown" | "zip") {
@@ -559,6 +602,18 @@ export default function ReviewPage() {
         <section className="flex min-h-0 min-w-0 flex-col">
           <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-7 sm:py-6">
             <div className="mx-auto max-w-[1120px]">
+              {reviewDocument?.warnings?.length ? (
+                <Alert className="mb-4 border-warning/30 bg-warning/5">
+                  <AlertDescription className="text-warning">
+                    <ul className="list-disc space-y-1 pl-4">
+                      {reviewDocument.warnings.map((warning, index) => (
+                        <li key={index}>{warning}</li>
+                      ))}
+                    </ul>
+                  </AlertDescription>
+                </Alert>
+              ) : null}
+
               {selectedSection ? (
                 <>
                   <div className="flex flex-wrap items-start justify-between gap-4">
