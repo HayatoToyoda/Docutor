@@ -1,12 +1,5 @@
 import { z } from "zod";
 
-const reviewStatusSchema = z.enum([
-  "pending",
-  "accepted",
-  "rejected",
-  "regenerating",
-]);
-
 const diagramNodeSchema = z.object({
   id: z.string(),
   label: z.string(),
@@ -37,14 +30,18 @@ const diagramIRSchema = z.object({
   confidence: z.number().min(0).max(1),
 });
 
+// Metadata the server always determines itself — document/section ids,
+// timestamps, review status, source file identity, asset paths, and diagram
+// source images — is intentionally absent from this schema. Making the
+// model produce it wastes tokens and invites fabrication (e.g. an invented
+// createdAt or an asset path outside the document sandbox). See
+// review-document-normalizer.ts for where that metadata is stamped on.
 const reviewSectionBaseSchema = z.object({
   id: z.string(),
   title: z.string(),
   sourcePage: z.number().int().positive(),
   originalText: z.string().nullable(),
-  sourceImage: z.string().nullable(),
   generatedMarkdown: z.string(),
-  reviewStatus: reviewStatusSchema,
   notes: z.array(z.string()).nullable(),
 });
 
@@ -61,7 +58,6 @@ const nonDiagramSectionSchema = reviewSectionBaseSchema.extend({
 
 const diagramSectionSchema = reviewSectionBaseSchema.extend({
   type: z.literal("diagram"),
-  sourceImage: z.string(),
   format: z.enum(["mermaid", "drawio"]),
   diagramIR: diagramIRSchema.nullable(),
   generatedCode: z
@@ -78,22 +74,8 @@ export const reviewSectionSchema = z.union([
 ]);
 
 export const reviewDocumentSchema = z.object({
-  id: z.string(),
   title: z.string(),
-  sourceFileName: z.string(),
-  sourceFileType: z.enum(["pdf", "docx", "pptx", "image"]),
-  createdAt: z.string(),
-  updatedAt: z.string(),
   sections: z.array(reviewSectionSchema),
-  assets: z.array(
-    z.object({
-      id: z.string(),
-      path: z.string(),
-      mimeType: z.string(),
-      title: z.string(),
-      sourcePage: z.number().int().positive().nullable(),
-    }),
-  ),
   warnings: z.array(z.string()),
 });
 
