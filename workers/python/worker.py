@@ -539,6 +539,11 @@ def normalize_docx_document(
             )
         )
 
+    if page_count > 1:
+        warnings.append(
+            "DOCX text-to-page mapping is approximate: all extracted text is assigned to page 1."
+        )
+
     return NormalizedDocument(
         id=document_id,
         sourceFileName=source_file_name or input_path.name,

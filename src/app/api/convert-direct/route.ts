@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { detectSourceFileType } from "@/lib/file-types";
+import { MAX_DIRECT_UPLOAD_BYTES } from "@/lib/limits";
 import {
   convertFileWithOpenAI,
   OpenAIProviderError,
@@ -10,8 +11,6 @@ import type { StoredDocumentJob } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
-
-export const MAX_DIRECT_UPLOAD_BYTES = 4 * 1024 * 1024;
 
 export async function POST(request: Request) {
   const formData = await request.formData();

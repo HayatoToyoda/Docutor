@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import JSZip from "jszip";
+import { stripMermaidFence } from "@/lib/diagrams/diagram-ir";
 import { renderReviewDocumentMarkdown } from "@/lib/export/markdown";
 import type { StoredDocumentJob } from "@/lib/types";
 
@@ -49,7 +50,18 @@ export async function buildDocumentZip(job: StoredDocumentJob) {
   }
 
   for (const section of job.reviewDocument.sections) {
-    if (section.type === "diagram" && section.drawioXml) {
+    if (section.type !== "diagram") {
+      continue;
+    }
+
+    if (section.format === "mermaid" && section.generatedCode) {
+      zip.file(
+        `diagrams/${section.id}.mmd`,
+        stripMermaidFence(section.generatedCode),
+      );
+    }
+
+    if (section.drawioXml) {
       zip.file(`diagrams/${section.id}.drawio`, section.drawioXml);
     }
   }

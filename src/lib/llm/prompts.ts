@@ -24,35 +24,46 @@ Return only the structured document requested by the schema.
 `.trim();
 
 export function buildDocumentConversionPrompt(document: NormalizedDocument) {
+  // Page/asset file paths are server-local filesystem paths under
+  // runtime/documents/<id>/ — never send them to the model. The model only
+  // needs to know an image exists for a page (hasPageImage) and which
+  // sourcePage a section came from; the server resolves the actual image
+  // for display from sourcePage after conversion (see
+  // normalizeReviewDocument in review-document-normalizer.ts).
   const pages = document.pages.map((page) => ({
     pageNumber: page.pageNumber,
     text: page.text,
     markdownTables: page.markdownTables,
-    imagePath: page.imagePath,
+    hasPageImage: Boolean(page.imagePath),
     assetIds: page.assets.map((asset) => asset.id),
+  }));
+
+  const assets = document.assets.map((asset) => ({
+    id: asset.id,
+    kind: asset.kind,
+    sourcePage: asset.sourcePage,
+    width: asset.width,
+    height: asset.height,
   }));
 
   return `
 Convert this normalized document into a review document.
 
 Required output behavior:
-- Use the document id: ${document.id}
-- Use the source file name: ${document.sourceFileName}
-- Use the source file type: ${document.fileType}
-- Set all generated section reviewStatus values to "pending".
 - Create stable section ids using the pattern "sec_<short_description>_<number>".
-- For sourceImage, use the page image path from the normalized page when the section depends on visual evidence.
+- Set each section's sourcePage to the exact page it was extracted from. The
+  server looks up the original page image for side-by-side review using this
+  value, so an incorrect sourcePage breaks that comparison.
 - Include warnings for ambiguity, missing evidence, or layout uncertainty.
 - If a diagram is present or likely present, create a diagram section with Mermaid for simple workflow diagrams or drawio for complex/grouped diagrams.
 
 Normalized document JSON:
 ${JSON.stringify(
   {
-    id: document.id,
     sourceFileName: document.sourceFileName,
     fileType: document.fileType,
     pages,
-    assets: document.assets,
+    assets,
     warnings: document.warnings,
   },
   null,
@@ -65,39 +76,40 @@ export function buildSectionRegenerationPrompt(
   document: NormalizedDocument,
   section: ReviewSection,
 ) {
+  const targetSection = stripFieldsForPrompt(section, {
+    stripDrawioXml: false,
+  });
+
   return `
 Regenerate exactly one review section from the normalized document.
 
 Keep this section id: ${section.id}
 Keep this section type: ${section.type}
-Use reviewStatus: "pending"
 
 Current section JSON:
-${JSON.stringify(section, null, 2)}
+${JSON.stringify(targetSection, null, 2)}
 
 Normalized document context:
 ${buildDocumentConversionPrompt(document)}
 `.trim();
 }
 
-// Strips fields that are large and useless to the model before a section is
-// embedded into a prompt via JSON.stringify: `sourceImage` data URLs (up to
-// a few MB of base64) and, for context-only sections, `drawioXml`. Without
-// this, direct image documents would blow the context window and the
-// /api/convert-direct/regenerate endpoint would 500.
-function stripBulkyFields(
+// Strips fields the model never controls before a section is embedded into
+// a prompt via JSON.stringify: `reviewStatus` and `sourceImage` are
+// server-assigned (see review-document-schema.ts / normalizeReviewSection)
+// and would waste tokens or leak a multi-MB base64 data URL into the
+// context window, and `drawioXml` is large and useless for context-only
+// sections.
+function stripFieldsForPrompt(
   section: ReviewSection,
   { stripDrawioXml }: { stripDrawioXml: boolean },
-) {
-  const stripped: ReviewSection = {
-    ...section,
-    sourceImage: section.sourceImage?.startsWith("data:")
-      ? ""
-      : section.sourceImage,
-  } as ReviewSection;
+): Record<string, unknown> {
+  const stripped: Record<string, unknown> = { ...section };
+  delete stripped.reviewStatus;
+  delete stripped.sourceImage;
 
-  if (stripDrawioXml && "drawioXml" in stripped) {
-    delete (stripped as { drawioXml?: string }).drawioXml;
+  if (stripDrawioXml) {
+    delete stripped.drawioXml;
   }
 
   return stripped;
@@ -118,10 +130,14 @@ export function buildDirectSectionRegenerationPrompt(
   },
   section: ReviewSection,
 ) {
-  const targetSection = stripBulkyFields(section, { stripDrawioXml: false });
+  const targetSection = stripFieldsForPrompt(section, {
+    stripDrawioXml: false,
+  });
   const otherSections = document.sections
     .filter((candidate) => candidate.id !== section.id)
-    .map((candidate) => stripBulkyFields(candidate, { stripDrawioXml: true }));
+    .map((candidate) =>
+      stripFieldsForPrompt(candidate, { stripDrawioXml: true }),
+    );
 
   return `
 Regenerate exactly one review section for this document. The original source
@@ -135,7 +151,6 @@ Source file type: ${document.sourceFileType}
 
 Keep this section id: ${section.id}
 Keep this section type: ${section.type}
-Use reviewStatus: "pending"
 
 Current section JSON:
 ${JSON.stringify(targetSection, null, 2)}

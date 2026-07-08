@@ -99,6 +99,7 @@ export default function CompletePage() {
     return count + (matches?.length ?? 0);
   }, 0);
 
+  const assetCount = reviewDocument?.assets.length ?? 0;
   const exportFiles = [
     {
       name: "document.md",
@@ -110,11 +111,15 @@ export default function CompletePage() {
       detail: "Document metadata and section traceability",
       type: "JSON",
     },
-    {
-      name: "assets/",
-      detail: `${reviewDocument?.assets.length ?? 0} captured source assets`,
-      type: "Folder",
-    },
+    ...(assetCount > 0
+      ? [
+          {
+            name: "assets/",
+            detail: `${assetCount} captured source assets`,
+            type: "Folder",
+          },
+        ]
+      : []),
     ...(diagramCount > 0
       ? [
           {

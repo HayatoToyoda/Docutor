@@ -20,10 +20,10 @@ import {
   createDemoDocument,
   saveClientDocument,
 } from "@/lib/client-document-store";
+import { MAX_DIRECT_UPLOAD_BYTES } from "@/lib/limits";
 import type { StoredDocumentJob } from "@/lib/types";
 
 type Provider = "openai" | "mock";
-const MAX_HOSTED_UPLOAD_BYTES = 4 * 1024 * 1024;
 
 function formatBytes(bytes: number) {
   if (bytes < 1024 * 1024) {
@@ -69,7 +69,7 @@ export default function Home() {
       return;
     }
 
-    if (file.size > MAX_HOSTED_UPLOAD_BYTES) {
+    if (file.size > MAX_DIRECT_UPLOAD_BYTES) {
       setMessage("File is too large. The hosted demo limit is 4 MB.");
       return;
     }

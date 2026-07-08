@@ -1,11 +1,10 @@
 import { NextResponse } from "next/server";
 import { detectSourceFileType } from "@/lib/file-types";
+import { MAX_UPLOAD_BYTES } from "@/lib/limits";
 import { jsonError } from "@/lib/server/http";
 import { createDocumentJob, StorageError } from "@/lib/server/storage";
 
 export const runtime = "nodejs";
-
-const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
 
 export async function POST(request: Request) {
   const formData = await request.formData();

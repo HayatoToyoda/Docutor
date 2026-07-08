@@ -5,12 +5,10 @@ import type { ResponseInputContent } from "openai/resources/responses/responses"
 import {
   reviewDocumentSchema,
   reviewSectionSchema,
-  type ReviewDocumentOutput,
-  type ReviewSectionOutput,
 } from "@/lib/llm/review-document-schema";
 import {
-  normalizeReviewDocumentOutput,
-  normalizeReviewSectionOutput,
+  normalizeReviewDocument,
+  normalizeReviewSection,
 } from "@/lib/llm/review-document-normalizer";
 import {
   DOCUTOR_SYSTEM_PROMPT,
@@ -49,9 +47,10 @@ async function buildUserContent(document: NormalizedDocument) {
     },
   ];
 
-  const pageImages = document.assets
-    .filter((asset) => asset.kind === "page-image")
-    .slice(0, MAX_PAGE_IMAGES);
+  const allPageImages = document.assets.filter(
+    (asset) => asset.kind === "page-image",
+  );
+  const pageImages = allPageImages.slice(0, MAX_PAGE_IMAGES);
 
   for (const asset of pageImages) {
     try {
@@ -68,7 +67,30 @@ async function buildUserContent(document: NormalizedDocument) {
     }
   }
 
-  return content;
+  return {
+    content,
+    truncatedPageImageCount: Math.max(
+      0,
+      allPageImages.length - MAX_PAGE_IMAGES,
+    ),
+  };
+}
+
+function appendPageImageTruncationWarning(
+  document: ReviewDocument,
+  truncatedPageImageCount: number,
+): ReviewDocument {
+  if (truncatedPageImageCount <= 0) {
+    return document;
+  }
+
+  return {
+    ...document,
+    warnings: [
+      ...document.warnings,
+      `Only the first ${MAX_PAGE_IMAGES} page images were provided to the model; pages beyond that were converted from extracted text only.`,
+    ],
+  };
 }
 
 function createClient() {
@@ -111,48 +133,6 @@ async function convertContent(
   return normalizeReviewDocument(response.output_parsed, source);
 }
 
-function normalizeReviewDocument(
-  output: ReviewDocumentOutput,
-  source: NormalizedDocument,
-): ReviewDocument {
-  const now = new Date().toISOString();
-  const normalized = normalizeReviewDocumentOutput(output);
-
-  return {
-    ...normalized,
-    id: source.id,
-    sourceFileName: source.sourceFileName,
-    sourceFileType: source.fileType,
-    createdAt: output.createdAt || now,
-    updatedAt: now,
-    sections: normalized.sections.map((section) => ({
-      ...section,
-      reviewStatus: "pending",
-    })),
-    warnings: [...source.warnings, ...output.warnings],
-  } as ReviewDocument;
-}
-
-function normalizeReviewSection(
-  output: ReviewSectionOutput,
-  source: ReviewSection,
-): ReviewSection {
-  const normalized = normalizeReviewSectionOutput(output);
-
-  return {
-    ...normalized,
-    id: source.id,
-    type: source.type,
-    sourcePage: output.sourcePage || source.sourcePage,
-    // The model never has access to the original source image or text, so
-    // prefer the stored values whenever the model output is empty rather
-    // than letting an empty regeneration result erase them.
-    sourceImage: normalized.sourceImage || source.sourceImage,
-    originalText: normalized.originalText || source.originalText,
-    reviewStatus: "pending",
-  } as ReviewSection;
-}
-
 export async function convertFileWithOpenAI(input: {
   id: string;
   sourceFileName: string;
@@ -187,7 +167,7 @@ export async function convertFileWithOpenAI(input: {
     fileContent,
     {
       type: "input_text",
-      text: `${buildDocumentConversionPrompt(source)}\n\nThe source file is attached directly. Read its contents from the attached file. Use an empty string for sourceImage when no persistent source image URL is available. Do not invent asset paths.`,
+      text: `${buildDocumentConversionPrompt(source)}\n\nThe source file is attached directly. Read its contents from the attached file.`,
     },
   ]);
 
@@ -262,11 +242,17 @@ export function createOpenAIProvider(): ConversionProvider {
   return {
     name: "openai",
     async convert(input) {
-      return convertContent(input, await buildUserContent(input));
+      const { content, truncatedPageImageCount } =
+        await buildUserContent(input);
+      const reviewDocument = await convertContent(input, content);
+      return appendPageImageTruncationWarning(
+        reviewDocument,
+        truncatedPageImageCount,
+      );
     },
     async regenerateSection(input, section) {
       const client = createClient();
-      const content = await buildUserContent(input);
+      const { content } = await buildUserContent(input);
       content.push({
         type: "input_text",
         text: buildSectionRegenerationPrompt(input, section),
