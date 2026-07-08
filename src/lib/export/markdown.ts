@@ -9,9 +9,10 @@ function renderSection(section: ReviewSection) {
   }
 
   if (section.type === "diagram") {
-    if (section.generatedMarkdown.trim()) {
-      blocks.push(section.generatedMarkdown.trim());
-    } else if (section.format === "mermaid") {
+    // generatedCode is the editable source of truth for diagrams (it drives
+    // the live preview too), so export must render from it rather than the
+    // possibly-stale generatedMarkdown snapshot captured at conversion time.
+    if (section.format === "mermaid") {
       blocks.push(
         `\`\`\`mermaid\n${stripMermaidFence(section.generatedCode)}\n\`\`\``,
       );

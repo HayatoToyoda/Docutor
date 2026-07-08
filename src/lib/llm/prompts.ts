@@ -1,5 +1,8 @@
-import type { NormalizedDocument } from "@/lib/types";
-import type { ReviewSection } from "@/lib/types";
+import type {
+  NormalizedDocument,
+  ReviewSection,
+  SourceFileType,
+} from "@/lib/types";
 
 export const DOCUTOR_SYSTEM_PROMPT = `
 You are Docutor, a document conversion engine for Japanese enterprise documents.
@@ -74,5 +77,46 @@ ${JSON.stringify(section, null, 2)}
 
 Normalized document context:
 ${buildDocumentConversionPrompt(document)}
+`.trim();
+}
+
+/**
+ * Regeneration prompt for the direct-upload flow, where the original source
+ * file bytes are not available server-side (only the previously generated
+ * review document). Grounds the model in the document's own accepted
+ * content instead of re-reading the source.
+ */
+export function buildDirectSectionRegenerationPrompt(
+  document: {
+    title: string;
+    sourceFileName: string;
+    sourceFileType: SourceFileType;
+    sections: ReviewSection[];
+  },
+  section: ReviewSection,
+) {
+  const otherSections = document.sections.filter(
+    (candidate) => candidate.id !== section.id,
+  );
+
+  return `
+Regenerate exactly one review section for this document. The original source
+file is not attached to this request, so rely only on the document context
+below. Do not invent facts that are not already present in that context;
+mark anything you cannot verify as "TODO:" or "Unclear:".
+
+Document title: ${document.title}
+Source file name: ${document.sourceFileName}
+Source file type: ${document.sourceFileType}
+
+Keep this section id: ${section.id}
+Keep this section type: ${section.type}
+Use reviewStatus: "pending"
+
+Current section JSON:
+${JSON.stringify(section, null, 2)}
+
+Other sections in this document, for context only (do not regenerate these):
+${JSON.stringify(otherSections, null, 2)}
 `.trim();
 }

@@ -34,6 +34,15 @@ export function isClientDocumentId(documentId: string) {
   return documentId.startsWith("direct-") || documentId.startsWith("demo-");
 }
 
+// "demo-" documents never called a real provider (see createDemoDocument
+// below) and have no upload behind them to regenerate against, so
+// regeneration stays a client-side placeholder. "direct-" documents were
+// produced by a real LLM call and can be regenerated for real via
+// /api/convert-direct/regenerate.
+export function isDemoDocumentId(documentId: string) {
+  return documentId.startsWith("demo-");
+}
+
 export function saveClientDocument(job: StoredDocumentJob) {
   localStorage.setItem(`${STORAGE_PREFIX}${job.id}`, JSON.stringify(job));
 }
