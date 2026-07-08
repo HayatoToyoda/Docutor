@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import JSZip from "jszip";
-import { stripMermaidFence } from "@/lib/diagrams/diagram-ir";
+import { buildExportManifest, collectDiagramExports } from "@/lib/document-model";
 import { renderReviewDocumentMarkdown } from "@/lib/export/markdown";
 import type { StoredDocumentJob } from "@/lib/types";
 
@@ -18,24 +18,7 @@ export async function buildDocumentZip(job: StoredDocumentJob) {
   const zip = new JSZip();
   const markdown = renderReviewDocumentMarkdown(job.reviewDocument);
   zip.file("document.md", markdown);
-  zip.file(
-    "manifest.json",
-    JSON.stringify(
-      {
-        id: job.id,
-        sourceFileName: job.sourceFileName,
-        sourceFileType: job.sourceFileType,
-        status: job.status,
-        exportedAt: new Date().toISOString(),
-        acceptedSectionIds: job.reviewDocument.sections
-          .filter((section) => section.reviewStatus === "accepted")
-          .map((section) => section.id),
-        assets: job.reviewDocument.assets,
-      },
-      null,
-      2,
-    ),
-  );
+  zip.file("manifest.json", JSON.stringify(buildExportManifest(job), null, 2));
 
   for (const [index, asset] of job.reviewDocument.assets.entries()) {
     try {
@@ -49,21 +32,8 @@ export async function buildDocumentZip(job: StoredDocumentJob) {
     }
   }
 
-  for (const section of job.reviewDocument.sections) {
-    if (section.type !== "diagram") {
-      continue;
-    }
-
-    if (section.format === "mermaid" && section.generatedCode) {
-      zip.file(
-        `diagrams/${section.id}.mmd`,
-        stripMermaidFence(section.generatedCode),
-      );
-    }
-
-    if (section.drawioXml) {
-      zip.file(`diagrams/${section.id}.drawio`, section.drawioXml);
-    }
+  for (const diagramFile of collectDiagramExports(job.reviewDocument)) {
+    zip.file(diagramFile.path, diagramFile.content);
   }
 
   return zip.generateAsync({ type: "nodebuffer" });

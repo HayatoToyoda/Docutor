@@ -1,19 +1,12 @@
 import { NextResponse } from "next/server";
+import { applySectionPatch, type SectionPatch } from "@/lib/document-model";
 import { jsonError } from "@/lib/server/http";
 import { readDocumentJob, saveDocumentJob } from "@/lib/server/storage";
-import type { ReviewSection } from "@/lib/types";
 
 export const runtime = "nodejs";
 
 type RouteContext = {
   params: Promise<{ id: string; sectionId: string }>;
-};
-
-type SectionPatch = {
-  generatedMarkdown?: string;
-  generatedCode?: string;
-  drawioXml?: string;
-  reviewStatus?: ReviewSection["reviewStatus"];
 };
 
 export async function PATCH(request: Request, context: RouteContext) {
@@ -25,30 +18,26 @@ export async function PATCH(request: Request, context: RouteContext) {
   }
 
   const patch = (await request.json()) as SectionPatch;
-  const sectionIndex = document.reviewDocument.sections.findIndex(
+  const sectionExists = document.reviewDocument.sections.some(
     (section) => section.id === sectionId,
   );
 
-  if (sectionIndex === -1) {
+  if (!sectionExists) {
     return jsonError("Section not found.", 404);
   }
 
-  const section = document.reviewDocument.sections[sectionIndex];
-  const nextSection = {
-    ...section,
-    ...patch,
-  } as ReviewSection;
-
-  const sections = [...document.reviewDocument.sections];
-  sections[sectionIndex] = nextSection;
+  const reviewDocument = applySectionPatch(
+    document.reviewDocument,
+    sectionId,
+    patch,
+  );
+  const nextSection = reviewDocument.sections.find(
+    (section) => section.id === sectionId,
+  )!;
 
   const updated = await saveDocumentJob({
     ...document,
-    reviewDocument: {
-      ...document.reviewDocument,
-      updatedAt: new Date().toISOString(),
-      sections,
-    },
+    reviewDocument,
   });
 
   return NextResponse.json({ document: updated, section: nextSection });
