@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { createConversionProvider } from "@/lib/llm/providers";
 import { jsonError } from "@/lib/server/http";
 import { readDocumentJob, saveDocumentJob } from "@/lib/server/storage";
-import type { ConversionProviderName } from "@/lib/types";
 
 export const runtime = "nodejs";
 
@@ -10,32 +9,12 @@ type RouteContext = {
   params: Promise<{ id: string; sectionId: string }>;
 };
 
-function providerFromRequest(request: Request): ConversionProviderName | undefined {
-  const provider = new URL(request.url).searchParams.get("provider");
-  if (!provider) {
-    return undefined;
-  }
-
-  if (provider === "openai" || provider === "mock" || provider === "codex-local") {
-    return provider;
-  }
-
-  throw new Error("Unsupported conversion provider.");
-}
-
-export async function POST(request: Request, context: RouteContext) {
+export async function POST(_request: Request, context: RouteContext) {
   const { id, sectionId } = await context.params;
   const document = await readDocumentJob(id);
 
   if (!document?.reviewDocument || !document.normalizedDocument) {
     return jsonError("Converted review document not found.", 404);
-  }
-
-  let providerName: ConversionProviderName | undefined;
-  try {
-    providerName = providerFromRequest(request);
-  } catch (error) {
-    return jsonError((error as Error).message, 400);
   }
 
   const sectionIndex = document.reviewDocument.sections.findIndex(
@@ -46,7 +25,9 @@ export async function POST(request: Request, context: RouteContext) {
     return jsonError("Section not found.", 404);
   }
 
-  const provider = createConversionProvider(providerName);
+  // Always use the env-configured default provider — regeneration must not
+  // be forceable to a different (e.g. mock) provider via a request param.
+  const provider = createConversionProvider();
 
   if (!provider.regenerateSection) {
     return jsonError("Selected provider does not support regeneration.", 501);
@@ -66,6 +47,11 @@ export async function POST(request: Request, context: RouteContext) {
     },
   });
 
+  const regeneratingReviewDocument = regeneratingJob.reviewDocument;
+  if (!regeneratingReviewDocument) {
+    return jsonError("Converted review document not found.", 500);
+  }
+
   try {
     const regeneratedSection = await provider.regenerateSection(
       document.normalizedDocument,
@@ -76,7 +62,7 @@ export async function POST(request: Request, context: RouteContext) {
     const updated = await saveDocumentJob({
       ...regeneratingJob,
       reviewDocument: {
-        ...regeneratingJob.reviewDocument!,
+        ...regeneratingReviewDocument,
         updatedAt: new Date().toISOString(),
         sections,
       },
@@ -95,7 +81,7 @@ export async function POST(request: Request, context: RouteContext) {
     const failed = await saveDocumentJob({
       ...regeneratingJob,
       reviewDocument: {
-        ...regeneratingJob.reviewDocument!,
+        ...regeneratingReviewDocument,
         updatedAt: new Date().toISOString(),
         sections,
       },

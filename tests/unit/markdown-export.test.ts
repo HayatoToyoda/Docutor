@@ -36,4 +36,57 @@ describe("renderReviewDocumentMarkdown", () => {
     expect(markdown).toContain("A --> C");
     expect(markdown).not.toContain("A --> B");
   });
+
+  it("exports the drawio generatedMarkdown when present, instead of the TODO placeholder", () => {
+    const document: ReviewDocument = {
+      ...reviewDocumentFixture,
+      sections: [
+        {
+          id: "sec_diagram_2",
+          type: "diagram",
+          title: "Complex workflow diagram",
+          sourcePage: 1,
+          sourceImage: "",
+          format: "drawio",
+          generatedCode: "",
+          drawioXml: "<mxGraphModel />",
+          generatedMarkdown: "![drawio diagram](diagrams/sec_diagram_2.drawio)",
+          reviewStatus: "accepted",
+        },
+      ],
+    };
+
+    const markdown = renderReviewDocumentMarkdown(document);
+
+    expect(markdown).toContain("![drawio diagram](diagrams/sec_diagram_2.drawio)");
+    expect(markdown).not.toContain(
+      "TODO: draw.io diagram exported as related asset.",
+    );
+  });
+
+  it("falls back to the TODO placeholder for a drawio section with no generatedMarkdown", () => {
+    const document: ReviewDocument = {
+      ...reviewDocumentFixture,
+      sections: [
+        {
+          id: "sec_diagram_3",
+          type: "diagram",
+          title: "Complex workflow diagram",
+          sourcePage: 1,
+          sourceImage: "",
+          format: "drawio",
+          generatedCode: "",
+          drawioXml: "<mxGraphModel />",
+          generatedMarkdown: "",
+          reviewStatus: "accepted",
+        },
+      ],
+    };
+
+    const markdown = renderReviewDocumentMarkdown(document);
+
+    expect(markdown).toContain(
+      "TODO: draw.io diagram exported as related asset.",
+    );
+  });
 });

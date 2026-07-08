@@ -37,19 +37,21 @@ export async function POST(request: Request) {
   const now = new Date().toISOString();
 
   try {
+    const mimeType = file.type || "application/octet-stream";
+    const buffer = Buffer.from(await file.arrayBuffer());
     const reviewDocument = await convertFileWithOpenAI({
       id,
       sourceFileName: file.name,
       fileType: sourceFileType,
-      mimeType: file.type || "application/octet-stream",
-      data: Buffer.from(await file.arrayBuffer()),
+      mimeType,
+      data: buffer,
     });
     const document: StoredDocumentJob = {
       id,
       status: "ready",
       sourceFileName: file.name,
       sourceFileType,
-      mimeType: file.type || "application/octet-stream",
+      mimeType,
       size: file.size,
       createdAt: now,
       updatedAt: now,
@@ -58,6 +60,11 @@ export async function POST(request: Request) {
         ...reviewDocument,
         assets: [],
       },
+      // Single copy of the uploaded image for the comparison view, instead
+      // of duplicating it onto every section (see convertFileWithOpenAI).
+      ...(sourceFileType === "image"
+        ? { directSourceImage: `data:${mimeType};base64,${buffer.toString("base64")}` }
+        : {}),
     };
 
     return NextResponse.json({ document });

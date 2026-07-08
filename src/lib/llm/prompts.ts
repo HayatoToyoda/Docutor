@@ -80,6 +80,29 @@ ${buildDocumentConversionPrompt(document)}
 `.trim();
 }
 
+// Strips fields that are large and useless to the model before a section is
+// embedded into a prompt via JSON.stringify: `sourceImage` data URLs (up to
+// a few MB of base64) and, for context-only sections, `drawioXml`. Without
+// this, direct image documents would blow the context window and the
+// /api/convert-direct/regenerate endpoint would 500.
+function stripBulkyFields(
+  section: ReviewSection,
+  { stripDrawioXml }: { stripDrawioXml: boolean },
+) {
+  const stripped: ReviewSection = {
+    ...section,
+    sourceImage: section.sourceImage?.startsWith("data:")
+      ? ""
+      : section.sourceImage,
+  } as ReviewSection;
+
+  if (stripDrawioXml && "drawioXml" in stripped) {
+    delete (stripped as { drawioXml?: string }).drawioXml;
+  }
+
+  return stripped;
+}
+
 /**
  * Regeneration prompt for the direct-upload flow, where the original source
  * file bytes are not available server-side (only the previously generated
@@ -95,9 +118,10 @@ export function buildDirectSectionRegenerationPrompt(
   },
   section: ReviewSection,
 ) {
-  const otherSections = document.sections.filter(
-    (candidate) => candidate.id !== section.id,
-  );
+  const targetSection = stripBulkyFields(section, { stripDrawioXml: false });
+  const otherSections = document.sections
+    .filter((candidate) => candidate.id !== section.id)
+    .map((candidate) => stripBulkyFields(candidate, { stripDrawioXml: true }));
 
   return `
 Regenerate exactly one review section for this document. The original source
@@ -114,7 +138,7 @@ Keep this section type: ${section.type}
 Use reviewStatus: "pending"
 
 Current section JSON:
-${JSON.stringify(section, null, 2)}
+${JSON.stringify(targetSection, null, 2)}
 
 Other sections in this document, for context only (do not regenerate these):
 ${JSON.stringify(otherSections, null, 2)}
