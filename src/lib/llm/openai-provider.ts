@@ -14,6 +14,7 @@ import {
 } from "@/lib/llm/review-document-normalizer";
 import {
   DOCUTOR_SYSTEM_PROMPT,
+  buildDirectSectionRegenerationPrompt,
   buildDocumentConversionPrompt,
   buildSectionRegenerationPrompt,
 } from "@/lib/llm/prompts";
@@ -175,13 +176,83 @@ export async function convertFileWithOpenAI(input: {
           file_data: dataUrl,
         };
 
-  return convertContent(source, [
+  const reviewDocument = await convertContent(source, [
     fileContent,
     {
       type: "input_text",
       text: `${buildDocumentConversionPrompt(source)}\n\nThe source file is attached directly. Read its contents from the attached file. Use an empty string for sourceImage when no persistent source image URL is available. Do not invent asset paths.`,
     },
   ]);
+
+  if (input.fileType === "image") {
+    // The direct-upload flow never runs the Python Worker, so the model has
+    // no persistent page-image path to reference. The uploaded image itself
+    // *is* the single source page, so attach it directly for the original
+    // vs. generated comparison view.
+    return {
+      ...reviewDocument,
+      sections: reviewDocument.sections.map((section) => ({
+        ...section,
+        sourceImage: dataUrl,
+      })),
+    };
+  }
+
+  return {
+    ...reviewDocument,
+    warnings: [
+      ...reviewDocument.warnings,
+      "Original page image comparison is only available when documents are converted through the server pipeline (POST /api/documents/:id/convert).",
+    ],
+  };
+}
+
+/**
+ * Regenerates a single section for the direct-upload flow, where only the
+ * previously generated review document (not the original file bytes) is
+ * available server-side. Used by the stateless /api/convert-direct/regenerate
+ * endpoint so hosted/demo documents get a real LLM regeneration instead of a
+ * client-side placeholder.
+ */
+export async function regenerateDirectSection(
+  document: {
+    title: string;
+    sourceFileName: string;
+    sourceFileType: SourceFileType;
+    sections: ReviewSection[];
+  },
+  section: ReviewSection,
+) {
+  const client = createClient();
+  const response = await client.responses.parse({
+    model: process.env.OPENAI_MODEL ?? DEFAULT_MODEL,
+    input: [
+      {
+        role: "system",
+        content: DOCUTOR_SYSTEM_PROMPT,
+      },
+      {
+        role: "user",
+        content: [
+          {
+            type: "input_text",
+            text: buildDirectSectionRegenerationPrompt(document, section),
+          },
+        ],
+      },
+    ],
+    text: {
+      format: zodTextFormat(reviewSectionSchema, "review_section"),
+    },
+  });
+
+  if (!response.output_parsed) {
+    throw new OpenAIProviderError(
+      "OpenAI regeneration did not return a parsed review section.",
+    );
+  }
+
+  return normalizeReviewSection(response.output_parsed, section);
 }
 
 export function createOpenAIProvider(): ConversionProvider {

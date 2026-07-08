@@ -6,6 +6,15 @@ import type { DocumentJobStatus, StoredDocumentJob } from "@/lib/types";
 
 const STORAGE_ROOT = path.join(process.cwd(), "runtime", "documents");
 
+// Document ids are generated with randomUUID() or a "direct-"/"demo-" prefix
+// plus a UUID. Restricting to this charset keeps documentDir() from ever
+// escaping STORAGE_ROOT via a crafted id (e.g. "..").
+const SAFE_DOCUMENT_ID_PATTERN = /^[a-zA-Z0-9_-]+$/;
+
+export function isSafeDocumentId(documentId: string) {
+  return SAFE_DOCUMENT_ID_PATTERN.test(documentId);
+}
+
 export class StorageError extends Error {
   constructor(message: string) {
     super(message);
@@ -14,6 +23,9 @@ export class StorageError extends Error {
 }
 
 export function documentDir(documentId: string) {
+  if (!isSafeDocumentId(documentId)) {
+    throw new StorageError("Invalid document id.");
+  }
   return path.join(STORAGE_ROOT, documentId);
 }
 
@@ -67,6 +79,10 @@ export async function createDocumentJob(input: {
 export async function readDocumentJob(
   documentId: string,
 ): Promise<StoredDocumentJob | null> {
+  if (!isSafeDocumentId(documentId)) {
+    return null;
+  }
+
   try {
     const raw = await readFile(jobMetadataPath(documentId), "utf8");
     return JSON.parse(raw) as StoredDocumentJob;

@@ -16,6 +16,7 @@ import {
   buildClientExport,
   downloadBlob,
   isClientDocumentId,
+  isDemoDocumentId,
   patchClientSection,
   readClientDocument,
   saveClientDocument,
@@ -68,6 +69,31 @@ function typeLabel(section: ReviewSection) {
   return section.type === "paragraph"
     ? "TEXT"
     : section.type.toUpperCase();
+}
+
+// Resolves a viewable URL for the original page image behind a section, if
+// one is available. Prefers an inline data URL captured directly on the
+// section (used by the direct/demo client flows) and otherwise falls back
+// to the server pipeline's per-page image endpoint.
+function resolveSourceImageUrl(
+  job: StoredDocumentJob | null,
+  section: ReviewSection | null,
+): string | null {
+  if (!job || !section) return null;
+
+  if (section.sourceImage?.startsWith("data:")) {
+    return section.sourceImage;
+  }
+
+  const page = job.normalizedDocument?.pages.find(
+    (candidate) => candidate.pageNumber === section.sourcePage,
+  );
+
+  if (page?.imagePath) {
+    return `/api/documents/${job.id}/pages/${section.sourcePage}/image`;
+  }
+
+  return null;
 }
 
 function MermaidPreview({ code }: { code: string }) {
@@ -264,6 +290,10 @@ export default function ReviewPage() {
     sections.find((section) => section.id === selectedSectionId) ??
     sections[0] ??
     null;
+  const sourceImageUrl = useMemo(
+    () => resolveSourceImageUrl(job, selectedSection),
+    [job, selectedSection],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -350,28 +380,71 @@ export default function ReviewPage() {
     setMessage("Regenerating section...");
     updateLocalSection(sectionId, { reviewStatus: "regenerating" });
 
-    if (isClientDocumentId(params.id)) {
+    // "demo-" documents never called a real provider and have no source
+    // file behind them, so regeneration stays a client-side placeholder.
+    if (isDemoDocumentId(params.id)) {
       const section = sections.find((item) => item.id === sectionId);
       if (!section) return;
       updateLocalSection(
         sectionId,
         section.type === "diagram"
           ? {
-              generatedCode: `${section.generatedCode}\n  %% Regenerated in hosted mode`,
-              generatedMarkdown: `\`\`\`mermaid\n${section.generatedCode}\n  %% Regenerated in hosted mode\n\`\`\``,
+              generatedCode: `${section.generatedCode}\n  %% Regenerated in demo mode`,
+              generatedMarkdown: `\`\`\`mermaid\n${section.generatedCode}\n  %% Regenerated in demo mode\n\`\`\``,
               reviewStatus: "pending",
             }
           : {
-              generatedMarkdown: `${section.generatedMarkdown}\n\nTODO: Regenerated in hosted mode for review.`,
+              generatedMarkdown: `${section.generatedMarkdown}\n\nTODO: Regenerated in demo mode for review.`,
               reviewStatus: "pending",
             },
       );
-      setMessage("Section regenerated in this browser.");
+      setMessage(
+        "Demo mode: placeholder regeneration only (no LLM was called).",
+      );
       return;
     }
 
+    // "direct-" documents were produced by a real LLM call and live only in
+    // this browser, so regenerate them for real via the stateless direct API.
+    if (isClientDocumentId(params.id)) {
+      if (!reviewDocument) return;
+
+      try {
+        const response = await fetch("/api/convert-direct/regenerate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: reviewDocument.title,
+            sourceFileName: reviewDocument.sourceFileName,
+            sourceFileType: reviewDocument.sourceFileType,
+            sections: reviewDocument.sections,
+            sectionId,
+          }),
+        });
+        const payload = (await response.json()) as {
+          section?: ReviewSection;
+          error?: string;
+        };
+
+        if (!response.ok || !payload.section) {
+          updateLocalSection(sectionId, { reviewStatus: "pending" });
+          setMessage(payload.error ?? "Section regeneration failed.");
+          return;
+        }
+
+        updateLocalSection(sectionId, payload.section);
+        setMessage("Section regenerated.");
+      } catch {
+        updateLocalSection(sectionId, { reviewStatus: "pending" });
+        setMessage("Section regeneration failed.");
+      }
+      return;
+    }
+
+    // Server-managed documents regenerate through the configured default
+    // provider (DOCUTOR_LLM_PROVIDER) rather than a hardcoded mock provider.
     const response = await fetch(
-      `/api/documents/${params.id}/sections/${sectionId}/regenerate?provider=mock`,
+      `/api/documents/${params.id}/sections/${sectionId}/regenerate`,
       { method: "POST" },
     );
     const payload = (await response.json()) as DocumentPayload;
@@ -547,10 +620,21 @@ export default function ReviewPage() {
                             ORIGINAL SOURCE — PAGE {selectedSection.sourcePage}
                           </div>
                           <Separator />
-                          <div className="min-h-[330px] whitespace-pre-wrap bg-[#fafafb] p-4 text-[13px] leading-7 text-[#4a4e58]">
-                            {selectedSection.originalText ||
-                              "The original visual was captured from the source document. Compare its structure with the generated diagram."}
-                          </div>
+                          {sourceImageUrl ? (
+                            <div className="flex min-h-[330px] items-center justify-center overflow-auto bg-[#fafafb] p-3">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                alt={`Original source, page ${selectedSection.sourcePage}`}
+                                className="max-h-[520px] w-auto max-w-full rounded border border-[#e5e6ea] object-contain"
+                                src={sourceImageUrl}
+                              />
+                            </div>
+                          ) : (
+                            <div className="min-h-[330px] whitespace-pre-wrap bg-[#fafafb] p-4 text-[13px] leading-7 text-[#4a4e58]">
+                              {selectedSection.originalText ||
+                                "The original visual was captured from the source document. Compare its structure with the generated diagram."}
+                            </div>
+                          )}
                         </Card>
                         <Card className="gap-0 rounded-[10px] py-0">
                           <div className="flex items-center justify-between px-3.5 py-2.5">
@@ -624,6 +708,19 @@ export default function ReviewPage() {
                           {selectedSection.originalText ||
                             "Original source text was not included for this section."}
                         </div>
+                        {sourceImageUrl ? (
+                          <>
+                            <Separator />
+                            <div className="flex justify-center overflow-auto bg-[#fafafb] p-3">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                alt={`Original source, page ${selectedSection.sourcePage}`}
+                                className="max-h-[360px] w-auto max-w-full rounded border border-[#e5e6ea] object-contain"
+                                src={sourceImageUrl}
+                              />
+                            </div>
+                          </>
+                        ) : null}
                       </Card>
 
                       <Card className="gap-0 rounded-[10px] py-0">
@@ -710,7 +807,7 @@ export default function ReviewPage() {
               </Button>
             </div>
             <Button
-              disabled={sections.length === 0 || acceptedCount !== sections.length}
+              disabled={sections.length === 0 || reviewedCount !== sections.length}
               onClick={() => router.push(`/complete/${params.id}`)}
               size="lg"
               type="button"

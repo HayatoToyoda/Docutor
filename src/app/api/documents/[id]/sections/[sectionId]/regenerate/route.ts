@@ -86,18 +86,16 @@ export async function POST(request: Request, context: RouteContext) {
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Section regeneration failed.";
+    const previousSection = document.reviewDocument.sections[sectionIndex];
     sections[sectionIndex] = {
-      ...document.reviewDocument.sections[sectionIndex],
+      ...previousSection,
       reviewStatus: "pending",
-      notes: [
-        ...(document.reviewDocument.sections[sectionIndex].notes ?? []),
-        message,
-      ],
+      notes: [...(previousSection.notes ?? []), message],
     };
     const failed = await saveDocumentJob({
-      ...document,
+      ...regeneratingJob,
       reviewDocument: {
-        ...document.reviewDocument,
+        ...regeneratingJob.reviewDocument!,
         updatedAt: new Date().toISOString(),
         sections,
       },
