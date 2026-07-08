@@ -1,35 +1,21 @@
 import JSZip from "jszip";
+import { diagramIRToMermaid } from "@/lib/diagrams/diagram-ir";
 import {
-  diagramIRToMermaid,
-  stripMermaidFence,
-} from "@/lib/diagrams/diagram-ir";
+  applySectionPatch,
+  buildExportManifest,
+  collectDiagramExports,
+  type SectionPatch,
+} from "@/lib/document-model";
 import { renderReviewDocumentMarkdown } from "@/lib/export/markdown";
-import type {
-  DiagramIR,
-  ReviewSection,
-  SourceFileType,
-  StoredDocumentJob,
-} from "@/lib/types";
+import { detectSourceFileType } from "@/lib/file-types";
+import type { DiagramIR, StoredDocumentJob } from "@/lib/types";
 
 const STORAGE_PREFIX = "docutor:document:";
 
-export type ClientSectionPatch = {
-  generatedMarkdown?: string;
-  generatedCode?: string;
-  drawioXml?: string;
-  reviewStatus?: ReviewSection["reviewStatus"];
-};
-
-function detectFileType(fileName: string, mimeType: string): SourceFileType {
-  if (mimeType.startsWith("image/")) return "image";
-  const extension = fileName.split(".").pop()?.toLowerCase();
-  if (extension === "docx") return "docx";
-  if (extension === "pptx") return "pptx";
-  if (extension === "png" || extension === "jpg" || extension === "jpeg") {
-    return "image";
-  }
-  return "pdf";
-}
+// Re-exported for compatibility with existing importers of the old local
+// name; the type itself now lives in document-model.ts (shared with the
+// server-side PATCH route).
+export type { SectionPatch as ClientSectionPatch } from "@/lib/document-model";
 
 export function isClientDocumentId(documentId: string) {
   return documentId.startsWith("direct-") || documentId.startsWith("demo-");
@@ -63,22 +49,16 @@ export function readClientDocument(documentId: string) {
 export function patchClientSection(
   job: StoredDocumentJob,
   sectionId: string,
-  patch: ClientSectionPatch,
-) {
+  patch: SectionPatch,
+): StoredDocumentJob {
   if (!job.reviewDocument) return job;
 
-  const now = new Date().toISOString();
+  const reviewDocument = applySectionPatch(job.reviewDocument, sectionId, patch);
   return {
     ...job,
-    updatedAt: now,
-    reviewDocument: {
-      ...job.reviewDocument,
-      updatedAt: now,
-      sections: job.reviewDocument.sections.map((section) =>
-        section.id === sectionId ? { ...section, ...patch } : section,
-      ),
-    },
-  } as StoredDocumentJob;
+    updatedAt: reviewDocument.updatedAt,
+    reviewDocument,
+  };
 }
 
 export function createDemoDocument(file: {
@@ -107,7 +87,10 @@ export function createDemoDocument(file: {
     confidence: 0.9,
   };
   const mermaid = diagramIRToMermaid(diagramIR);
-  const sourceFileType = detectFileType(file.name, file.type);
+  // The demo flow never inspects file bytes, so an unrecognized name/MIME
+  // combination (e.g. no extension) falls back to "pdf" here explicitly,
+  // rather than detectSourceFileType silently guessing.
+  const sourceFileType = detectSourceFileType(file.name, file.type) ?? "pdf";
 
   return {
     id,
@@ -188,34 +171,10 @@ export async function buildClientExport(
 
   const zip = new JSZip();
   zip.file("document.md", markdown);
-  zip.file(
-    "manifest.json",
-    JSON.stringify(
-      {
-        id: job.id,
-        sourceFileName: job.sourceFileName,
-        exportedAt: new Date().toISOString(),
-        acceptedSectionIds: job.reviewDocument.sections
-          .filter((section) => section.reviewStatus === "accepted")
-          .map((section) => section.id),
-      },
-      null,
-      2,
-    ),
-  );
+  zip.file("manifest.json", JSON.stringify(buildExportManifest(job), null, 2));
 
-  for (const section of job.reviewDocument.sections) {
-    if (section.type === "diagram") {
-      if (section.format === "mermaid" && section.generatedCode) {
-        zip.file(
-          `diagrams/${section.id}.mmd`,
-          stripMermaidFence(section.generatedCode),
-        );
-      }
-      if (section.drawioXml) {
-        zip.file(`diagrams/${section.id}.drawio`, section.drawioXml);
-      }
-    }
+  for (const diagramFile of collectDiagramExports(job.reviewDocument)) {
+    zip.file(diagramFile.path, diagramFile.content);
   }
 
   return {

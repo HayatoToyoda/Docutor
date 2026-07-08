@@ -1,0 +1,145 @@
+// Pure, framework-free helpers shared by the server API routes and the
+// client-only (localStorage) document store. Keeping this logic here (and
+// out of both `src/app/api/**/route.ts` and `client-document-store.ts`)
+// means the two persistence layers can't drift apart on how a section patch
+// is applied or how an export manifest/ZIP is assembled.
+import { stripMermaidFence } from "@/lib/diagrams/diagram-ir";
+import type { ReviewAsset, ReviewDocument, ReviewSection, SourceFileType, StoredDocumentJob } from "@/lib/types";
+
+export type SectionPatch = {
+  generatedMarkdown?: string;
+  generatedCode?: string;
+  drawioXml?: string;
+  reviewStatus?: ReviewSection["reviewStatus"];
+};
+
+/**
+ * Applies a partial update to one section of a review document, returning a
+ * new `ReviewDocument` (the input is never mutated) with `updatedAt`
+ * refreshed.
+ *
+ * For diagram sections rendered as Mermaid, a patch that includes
+ * `generatedCode` also resyncs `generatedMarkdown` to a fresh Mermaid fence
+ * built from that code. This codifies the "generatedCode is the source of
+ * truth for diagrams" rule that `src/lib/export/markdown.ts` already
+ * enforces at export time (it renders diagram sections from `generatedCode`,
+ * not the possibly-stale `generatedMarkdown` snapshot) — applying the same
+ * rule here keeps the stored section internally consistent even before
+ * export runs.
+ */
+export function applySectionPatch(
+  reviewDocument: ReviewDocument,
+  sectionId: string,
+  patch: SectionPatch,
+): ReviewDocument {
+  const now = new Date().toISOString();
+
+  const sections = reviewDocument.sections.map((section) => {
+    if (section.id !== sectionId) {
+      return section;
+    }
+
+    const next = { ...section, ...patch } as ReviewSection;
+
+    if (
+      next.type === "diagram" &&
+      next.format === "mermaid" &&
+      patch.generatedCode !== undefined
+    ) {
+      return {
+        ...next,
+        generatedMarkdown: `\`\`\`mermaid\n${stripMermaidFence(next.generatedCode)}\n\`\`\``,
+      };
+    }
+
+    return next;
+  });
+
+  return {
+    ...reviewDocument,
+    updatedAt: now,
+    sections,
+  };
+}
+
+export type ExportManifest = {
+  id: string;
+  sourceFileName: string;
+  sourceFileType: SourceFileType;
+  exportedAt: string;
+  acceptedSectionIds: string[];
+  assets?: ReviewAsset[];
+};
+
+/**
+ * Builds the `manifest.json` content included in both export paths: the
+ * server ZIP builder (`src/lib/export/zip.ts`) and the client-only export
+ * builder (`buildClientExport` in `src/lib/client-document-store.ts`).
+ *
+ * Shape choice (picked once, used by both): `status` (the document job's
+ * processing status) is left out — it describes pipeline state, not the
+ * exported artifact, and is meaningless once review has already completed.
+ * `assets` is included only when the review document actually has assets,
+ * so the client-only path (which never has server-stored assets) omits the
+ * key entirely instead of emitting an empty array.
+ */
+export function buildExportManifest(job: StoredDocumentJob): ExportManifest {
+  if (!job.reviewDocument) {
+    throw new Error("Review document not found.");
+  }
+
+  const manifest: ExportManifest = {
+    id: job.id,
+    sourceFileName: job.sourceFileName,
+    sourceFileType: job.sourceFileType,
+    exportedAt: new Date().toISOString(),
+    acceptedSectionIds: job.reviewDocument.sections
+      .filter((section) => section.reviewStatus === "accepted")
+      .map((section) => section.id),
+  };
+
+  if (job.reviewDocument.assets.length > 0) {
+    manifest.assets = job.reviewDocument.assets;
+  }
+
+  return manifest;
+}
+
+export type DiagramExportFile = {
+  path: string;
+  content: string;
+};
+
+/**
+ * Collects the `diagrams/<sectionId>.mmd` (fence-stripped Mermaid source)
+ * and `diagrams/<sectionId>.drawio` entries for every diagram section in a
+ * review document. Used by both the server ZIP builder and the client-only
+ * export builder so their `diagrams/` contents stay identical in shape.
+ */
+export function collectDiagramExports(
+  reviewDocument: ReviewDocument,
+): DiagramExportFile[] {
+  const files: DiagramExportFile[] = [];
+
+  for (const section of reviewDocument.sections) {
+    if (section.type !== "diagram") {
+      continue;
+    }
+
+    if (section.format === "mermaid" && section.generatedCode) {
+      files.push({
+        path: `diagrams/${section.id}.mmd`,
+        content: stripMermaidFence(section.generatedCode),
+      });
+    }
+
+    if (section.drawioXml) {
+      files.push({
+        path: `diagrams/${section.id}.drawio`,
+        content: section.drawioXml,
+      });
+    }
+  }
+
+  return files;
+}
