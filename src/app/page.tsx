@@ -1,14 +1,9 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import {
-  ChangeEvent,
-  DragEvent,
-  FormEvent,
-  useRef,
-  useState,
-} from "react";
+import { ChangeEvent, DragEvent, FormEvent, useRef, useState } from "react";
 import { AppHeader } from "@/app/components/app-header";
+import { useDocumentUpload, type Provider } from "@/app/use-document-upload";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,10 +15,8 @@ import {
   createDemoDocument,
   saveClientDocument,
 } from "@/lib/client-document-store";
-import { MAX_DIRECT_UPLOAD_BYTES } from "@/lib/limits";
-import type { StoredDocumentJob } from "@/lib/types";
-
-type Provider = "openai" | "mock";
+import { MAX_DIRECT_UPLOAD_BYTES, MAX_UPLOAD_BYTES } from "@/lib/limits";
+import { isSelfHostedMode } from "@/lib/mode";
 
 function formatBytes(bytes: number) {
   if (bytes < 1024 * 1024) {
@@ -37,18 +30,19 @@ export default function Home() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [provider, setProvider] = useState<Provider>("openai");
-  const [isConverting, setIsConverting] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-  const [progress, setProgress] = useState(0);
+  const selfHosted = isSelfHostedMode();
+  const maxUploadBytes = selfHosted ? MAX_UPLOAD_BYTES : MAX_DIRECT_UPLOAD_BYTES;
+
+  const { isConverting, message, progress, convert, setMessage, resetStatus } =
+    useDocumentUpload();
 
   function chooseFile(nextFile?: File) {
     if (!nextFile) {
       return;
     }
     setFile(nextFile);
-    setMessage(null);
-    setProgress(0);
+    resetStatus();
   }
 
   function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
@@ -69,54 +63,16 @@ export default function Home() {
       return;
     }
 
-    if (file.size > MAX_DIRECT_UPLOAD_BYTES) {
-      setMessage("File is too large. The hosted demo limit is 4 MB.");
+    if (file.size > maxUploadBytes) {
+      setMessage(
+        selfHosted
+          ? "File is too large. The self-hosted limit is 25 MB."
+          : "File is too large. The hosted demo limit is 4 MB.",
+      );
       return;
     }
 
-    setIsConverting(true);
-    setProgress(24);
-    setMessage("Uploading source document...");
-
-    try {
-      if (provider === "mock") {
-        setProgress(68);
-        setMessage("Preparing browser-based demo content...");
-        const demoDocument = createDemoDocument(file);
-        saveClientDocument(demoDocument);
-        setProgress(100);
-        setMessage("Review workspace is ready.");
-        router.push(`/review/${demoDocument.id}`);
-        return;
-      }
-
-      const formData = new FormData();
-      formData.append("file", file);
-
-      setProgress(52);
-      setMessage("Analyzing the document with OpenAI...");
-      const uploadResponse = await fetch("/api/convert-direct", {
-        method: "POST",
-        body: formData,
-      });
-      const uploadPayload = await uploadResponse.json();
-
-      if (!uploadResponse.ok) {
-        throw new Error(uploadPayload.error ?? "Upload failed.");
-      }
-
-      const document = uploadPayload.document as StoredDocumentJob;
-      saveClientDocument(document);
-
-      setProgress(100);
-      setMessage("Review workspace is ready.");
-      router.push(`/review/${document.id}`);
-    } catch (error) {
-      setProgress(0);
-      setMessage(error instanceof Error ? error.message : "Conversion failed.");
-    } finally {
-      setIsConverting(false);
-    }
+    await convert(file, provider);
   }
 
   return (
@@ -164,7 +120,8 @@ export default function Home() {
               Drop a file here, or click to browse
             </span>
             <span className="mt-1 text-xs text-[#8b8f9a]">
-              .pptx · .docx · .pdf · .png · .jpg — max 4 MB
+              .pptx · .docx · .pdf · .png · .jpg — max{" "}
+              {selfHosted ? "25 MB" : "4 MB"}
             </span>
           </button>
 
