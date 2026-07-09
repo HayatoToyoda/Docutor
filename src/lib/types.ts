@@ -153,11 +153,19 @@ export type PythonWorkerResult = {
   stderr?: string;
 };
 
+export type RegenerateSectionOptions = {
+  // Optional free-text reviewer instruction (F-3) steering this
+  // regeneration, e.g. "the arrow between steps 2 and 3 points the wrong
+  // way".
+  instruction?: string;
+};
+
 export type ConversionProvider = {
   name: ConversionProviderName;
   convert(input: NormalizedDocument): Promise<ReviewDocument>;
   regenerateSection?(
     input: NormalizedDocument,
     section: ReviewSection,
+    options?: RegenerateSectionOptions,
   ): Promise<ReviewSection>;
 };

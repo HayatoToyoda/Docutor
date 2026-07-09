@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { appendInstructionNote } from "@/lib/document-model";
 import { regenerateDirectSection } from "@/lib/llm/openai-provider";
 import { jsonError } from "@/lib/server/http";
 import type { ReviewSection, SourceFileType } from "@/lib/types";
@@ -11,6 +12,9 @@ export const maxDuration = 120;
 // abusive/oversized payloads before they're even parsed as JSON.
 const MAX_BODY_CHARS = 1_000_000;
 const MAX_SECTIONS = 200;
+// Optional reviewer instruction (F-3); capped well below MAX_BODY_CHARS so a
+// runaway instruction can't be used to smuggle an oversized prompt in.
+const MAX_INSTRUCTION_CHARS = 2000;
 
 type RegenerateRequestBody = {
   title?: string;
@@ -18,6 +22,7 @@ type RegenerateRequestBody = {
   sourceFileType?: SourceFileType;
   sections?: ReviewSection[];
   sectionId?: string;
+  instruction?: string;
 };
 
 export async function POST(request: Request) {
@@ -50,6 +55,16 @@ export async function POST(request: Request) {
     return jsonError(`sections cannot contain more than ${MAX_SECTIONS} items.`);
   }
 
+  if (
+    body.instruction !== undefined &&
+    (typeof body.instruction !== "string" ||
+      body.instruction.length > MAX_INSTRUCTION_CHARS)
+  ) {
+    return jsonError(
+      `instruction cannot exceed ${MAX_INSTRUCTION_CHARS} characters.`,
+    );
+  }
+
   const section = body.sections.find(
     (candidate) => candidate.id === body.sectionId,
   );
@@ -67,9 +82,24 @@ export async function POST(request: Request) {
         sections: body.sections,
       },
       section,
+      { instruction: body.instruction },
     );
 
-    return NextResponse.json({ section: regenerated });
+    // Audit trail (F-3): fold the prior section's notes back in (the model
+    // output normalizeReviewSection produces replaces `notes` outright) and
+    // record the instruction, so instructed regenerations leave a visible
+    // history instead of silently dropping the prior notes.
+    const finalSection = body.instruction?.trim()
+      ? appendInstructionNote(
+          {
+            ...regenerated,
+            notes: [...(section.notes ?? []), ...(regenerated.notes ?? [])],
+          },
+          body.instruction,
+        )
+      : regenerated;
+
+    return NextResponse.json({ section: finalSection });
   } catch (error) {
     console.error(error);
     const message =

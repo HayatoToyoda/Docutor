@@ -156,7 +156,7 @@ export function SectionDetail({
   viewMode: "preview" | "edit";
   onViewModeChange: (mode: "preview" | "edit") => void;
   isSaving: boolean;
-  onRegenerate: () => void;
+  onRegenerate: (instruction?: string) => void;
   onSave: (patch: SectionPatch) => void;
   onUpdateLocal: (patch: SectionPatch) => void;
 }) {
@@ -166,19 +166,36 @@ export function SectionDetail({
   // within the window accepts. Resets when the selected section changes or
   // after 3s of inactivity.
   const [acceptConfirmArmed, setAcceptConfirmArmed] = useState(false);
+  // Instructed regeneration popover (F-3): a compact card anchored under the
+  // Regenerate button holding an optional free-text instruction.
+  const [regenerateOpen, setRegenerateOpen] = useState(false);
+  const [instructionDraft, setInstructionDraft] = useState("");
   const selectedSectionId = selectedSection?.id ?? null;
   const unresolvedMarkerCount = selectedSection
     ? extractSectionAttentionMarkers(selectedSection).length
     : 0;
 
-  // Reset the armed confirmation when the selected section changes. This
-  // adjusts state during render (React's recommended pattern for resetting
-  // state on a prop change) rather than in an effect, avoiding an extra
-  // render pass.
+  // Reset the armed confirmation and the regenerate popover when the
+  // selected section changes. This adjusts state during render (React's
+  // recommended pattern for resetting state on a prop change) rather than
+  // in an effect, avoiding an extra render pass.
   const [trackedSectionId, setTrackedSectionId] = useState(selectedSectionId);
   if (trackedSectionId !== selectedSectionId) {
     setTrackedSectionId(selectedSectionId);
     if (acceptConfirmArmed) setAcceptConfirmArmed(false);
+    if (regenerateOpen) setRegenerateOpen(false);
+    if (instructionDraft) setInstructionDraft("");
+  }
+
+  function closeRegeneratePopover() {
+    setRegenerateOpen(false);
+    setInstructionDraft("");
+  }
+
+  function submitRegenerate() {
+    const trimmed = instructionDraft.trim();
+    onRegenerate(trimmed || undefined);
+    closeRegeneratePopover();
   }
 
   useEffect(() => {
@@ -231,14 +248,49 @@ export function SectionDetail({
             </div>
 
             <div className="flex flex-wrap gap-2">
-              <Button
-                disabled={isSaving}
-                onClick={onRegenerate}
-                type="button"
-                variant="outline"
-              >
-                {isSaving ? "↻ Regenerating…" : "↻ Regenerate"}
-              </Button>
+              <div className="relative">
+                <Button
+                  aria-expanded={regenerateOpen}
+                  disabled={isSaving}
+                  onClick={() => setRegenerateOpen((current) => !current)}
+                  type="button"
+                  variant="outline"
+                >
+                  {isSaving ? "↻ Regenerating…" : "↻ Regenerate"}
+                </Button>
+
+                {regenerateOpen ? (
+                  <Card className="absolute left-0 top-full z-20 mt-2 w-80 gap-2 rounded-[10px] p-3 shadow-lg">
+                    <Textarea
+                      autoFocus
+                      className="h-20 resize-none text-xs"
+                      onChange={(event) =>
+                        setInstructionDraft(event.target.value)
+                      }
+                      placeholder="Optional instruction — e.g. 'The arrow between steps 2 and 3 points the wrong way'"
+                      value={instructionDraft}
+                    />
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        onClick={closeRegeneratePopover}
+                        size="sm"
+                        type="button"
+                        variant="ghost"
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        disabled={isSaving}
+                        onClick={submitRegenerate}
+                        size="sm"
+                        type="button"
+                      >
+                        Regenerate
+                      </Button>
+                    </div>
+                  </Card>
+                ) : null}
+              </div>
               <Button
                 disabled={isSaving}
                 onClick={() => onSave({ reviewStatus: "rejected" })}

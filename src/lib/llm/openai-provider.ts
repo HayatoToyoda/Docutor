@@ -19,6 +19,7 @@ import {
 import type {
   ConversionProvider,
   NormalizedDocument,
+  RegenerateSectionOptions,
   ReviewDocument,
   ReviewSection,
   SourceFileType,
@@ -205,6 +206,7 @@ export async function regenerateDirectSection(
     sections: ReviewSection[];
   },
   section: ReviewSection,
+  options?: RegenerateSectionOptions,
 ) {
   const client = createClient();
   const response = await client.responses.parse({
@@ -219,7 +221,11 @@ export async function regenerateDirectSection(
         content: [
           {
             type: "input_text",
-            text: buildDirectSectionRegenerationPrompt(document, section),
+            text: buildDirectSectionRegenerationPrompt(
+              document,
+              section,
+              options?.instruction,
+            ),
           },
         ],
       },
@@ -250,12 +256,16 @@ export function createOpenAIProvider(): ConversionProvider {
         truncatedPageImageCount,
       );
     },
-    async regenerateSection(input, section) {
+    async regenerateSection(input, section, options) {
       const client = createClient();
       const { content } = await buildUserContent(input);
       content.push({
         type: "input_text",
-        text: buildSectionRegenerationPrompt(input, section),
+        text: buildSectionRegenerationPrompt(
+          input,
+          section,
+          options?.instruction,
+        ),
       });
 
       const response = await client.responses.parse({

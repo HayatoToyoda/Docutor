@@ -71,8 +71,9 @@ export default function ReviewPage() {
           <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-7 sm:py-6">
             <SectionDetail
               isSaving={isSaving}
-              onRegenerate={() =>
-                selectedSection && regenerateSection(selectedSection.id)
+              onRegenerate={(instruction) =>
+                selectedSection &&
+                regenerateSection(selectedSection.id, instruction)
               }
               onSave={(patch) =>
                 selectedSection && saveSection(selectedSection.id, patch)

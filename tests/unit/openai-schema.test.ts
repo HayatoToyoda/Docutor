@@ -9,9 +9,11 @@ import {
   normalizeReviewSection,
 } from "../../src/lib/llm/review-document-normalizer";
 import {
+  buildDirectSectionRegenerationPrompt,
   buildDocumentConversionPrompt,
   buildSectionRegenerationPrompt,
 } from "../../src/lib/llm/prompts";
+import { appendInstructionNote } from "../../src/lib/document-model";
 import type { NormalizedDocument, ReviewSection } from "../../src/lib/types";
 
 const modelPayload: ReviewDocumentOutput = {
@@ -250,5 +252,109 @@ describe("prompt building never leaks server file paths", () => {
     expect(prompt).not.toContain("runtime/documents");
     expect(prompt).not.toContain("\"reviewStatus\"");
     expect(prompt).not.toContain("\"sourceImage\"");
+  });
+});
+
+describe("instructed regeneration prompts (F-3)", () => {
+  const source = buildNormalizedDocument();
+  const section: ReviewSection = {
+    id: "sec_diagram",
+    type: "diagram",
+    title: "Original diagram",
+    sourcePage: 2,
+    sourceImage: "/var/runtime/documents/doc_1/assets/page-2.png",
+    generatedMarkdown: "```mermaid\nflowchart TD\n  A --> B\n```",
+    reviewStatus: "accepted",
+    format: "mermaid",
+    generatedCode: "flowchart TD\n  A --> B",
+  };
+  const directDocument = {
+    title: "Sample doc",
+    sourceFileName: "sample.pdf",
+    sourceFileType: "pdf" as const,
+    sections: [section],
+  };
+
+  it("includes the reviewer-instruction block in buildSectionRegenerationPrompt when given", () => {
+    const prompt = buildSectionRegenerationPrompt(
+      source,
+      section,
+      "The arrow between steps 2 and 3 points the wrong way",
+    );
+
+    expect(prompt).toContain("Reviewer instruction");
+    expect(prompt).toContain(
+      "The arrow between steps 2 and 3 points the wrong way",
+    );
+    expect(prompt).toContain("never fabricate facts");
+  });
+
+  it("omits the reviewer-instruction block from buildSectionRegenerationPrompt when not given", () => {
+    const prompt = buildSectionRegenerationPrompt(source, section);
+    expect(prompt).not.toContain("Reviewer instruction");
+  });
+
+  it("includes the reviewer-instruction block in buildDirectSectionRegenerationPrompt when given", () => {
+    const prompt = buildDirectSectionRegenerationPrompt(
+      directDocument,
+      section,
+      "  Add a TODO for the missing branch.  ",
+    );
+
+    expect(prompt).toContain("Reviewer instruction");
+    expect(prompt).toContain("Add a TODO for the missing branch.");
+    expect(prompt).not.toContain("  Add a TODO for the missing branch.  \n");
+  });
+
+  it("omits the reviewer-instruction block from buildDirectSectionRegenerationPrompt when not given or blank", () => {
+    expect(buildDirectSectionRegenerationPrompt(directDocument, section)).not.toContain(
+      "Reviewer instruction",
+    );
+    expect(
+      buildDirectSectionRegenerationPrompt(directDocument, section, "   "),
+    ).not.toContain("Reviewer instruction");
+  });
+});
+
+describe("appendInstructionNote (F-3 audit trail)", () => {
+  const baseSection: ReviewSection = {
+    id: "sec_1",
+    type: "paragraph",
+    title: "Some section",
+    sourcePage: 1,
+    generatedMarkdown: "Generated content",
+    reviewStatus: "pending",
+    notes: ["Prior note one", "Prior note two"],
+  };
+
+  it("preserves every prior note and appends a new [instruction] entry", () => {
+    const result = appendInstructionNote(
+      baseSection,
+      "Fix the arrow direction",
+    );
+
+    expect(result.notes).toEqual([
+      "Prior note one",
+      "Prior note two",
+      "[instruction] Fix the arrow direction",
+    ]);
+    // The original section is left untouched.
+    expect(baseSection.notes).toEqual(["Prior note one", "Prior note two"]);
+  });
+
+  it("trims the instruction text before recording it", () => {
+    const result = appendInstructionNote(baseSection, "  spaced out  ");
+    expect(result.notes?.at(-1)).toBe("[instruction] spaced out");
+  });
+
+  it("initializes a notes array when the section previously had none", () => {
+    const noNotesSection: ReviewSection = { ...baseSection, notes: undefined };
+    const result = appendInstructionNote(noNotesSection, "First instruction");
+    expect(result.notes).toEqual(["[instruction] First instruction"]);
+  });
+
+  it("is a no-op for a missing or blank instruction", () => {
+    expect(appendInstructionNote(baseSection, undefined)).toBe(baseSection);
+    expect(appendInstructionNote(baseSection, "   ")).toBe(baseSection);
   });
 });
