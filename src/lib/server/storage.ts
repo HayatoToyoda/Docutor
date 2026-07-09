@@ -131,7 +131,10 @@ export async function setDocumentJobStatus(
   status: DocumentJobStatus,
   error?: string,
 ) {
-  return updateDocumentJob(documentId, { status, error });
+  // Always clears statusDetail (F-10's per-chunk progress text): it's only
+  // meaningful mid-"converting", so any other status transition should
+  // start from a clean slate rather than showing stale chunk progress.
+  return updateDocumentJob(documentId, { status, error, statusDetail: undefined });
 }
 
 /**

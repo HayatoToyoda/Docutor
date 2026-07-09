@@ -21,7 +21,10 @@ export async function POST(request: Request) {
   }
 
   if (file.size > MAX_DIRECT_UPLOAD_BYTES) {
-    return jsonError("File is too large. The hosted demo limit is 4 MB.", 413);
+    return jsonError(
+      "File is too large. The hosted demo limit is 4 MB. The self-hosted pipeline supports files up to 25 MB.",
+      413,
+    );
   }
 
   const sourceFileType = detectSourceFileType(file.name, file.type);

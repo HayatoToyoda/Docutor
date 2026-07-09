@@ -147,6 +147,12 @@ export type StoredDocumentJob = {
   normalizedDocument?: NormalizedDocument;
   reviewDocument?: ReviewDocument;
   error?: string;
+  // F-10: human-readable progress detail for long-running conversions of
+  // large documents, e.g. "Converting pages 7-12 of 23...". Set by the
+  // convert route's chunked-conversion progress callback while status is
+  // "converting", and cleared (undefined) once the job reaches "ready" or
+  // "failed" so it never lingers as stale text.
+  statusDetail?: string;
   // Single-copy data URL of the original upload for the direct flow's
   // comparison view (avoids duplicating the image onto every section).
   directSourceImage?: string;

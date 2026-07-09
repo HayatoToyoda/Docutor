@@ -27,7 +27,7 @@ export const en = {
   "common.fileTooLargeSelfHosted":
     "File is too large. The self-hosted limit is 25 MB.",
   "common.fileTooLargeHosted":
-    "File is too large. The hosted demo limit is 4 MB.",
+    "File is too large. The hosted demo limit is 4 MB. The self-hosted pipeline supports files up to 25 MB.",
   "common.documentLoadFailedClient":
     "Document could not be loaded in this browser.",
   "common.documentLoadFailed": "Document could not be loaded.",
@@ -227,7 +227,7 @@ export const ja: Record<keyof typeof en, string> = {
   "common.fileTooLargeSelfHosted":
     "ファイルサイズが上限を超えています。セルフホスト版の上限は25MBです。",
   "common.fileTooLargeHosted":
-    "ファイルサイズが上限を超えています。ホスト版デモの上限は4MBです。",
+    "ファイルサイズが上限を超えています。ホスト版デモの上限は4MBです。セルフホスト版のパイプラインなら25MBまでのファイルに対応しています。",
   "common.documentLoadFailedClient":
     "このブラウザではドキュメントを読み込めませんでした。",
   "common.documentLoadFailed": "ドキュメントを読み込めませんでした。",

@@ -1,4 +1,9 @@
 import { NextResponse } from "next/server";
+import {
+  convertDocumentInChunks,
+  resolvePagesPerChunk,
+  splitIntoPageWindows,
+} from "@/lib/llm/chunked-convert";
 import { createConversionProvider } from "@/lib/llm/providers";
 import { jsonError } from "@/lib/server/http";
 import { runPythonWorker } from "@/lib/server/python-worker";
@@ -6,6 +11,7 @@ import {
   readDocumentJob,
   saveDocumentJob,
   setDocumentJobStatus,
+  updateDocumentJob,
 } from "@/lib/server/storage";
 import type { ConversionProviderName } from "@/lib/types";
 
@@ -60,7 +66,35 @@ export async function POST(request: Request, context: RouteContext) {
     });
 
     const provider = createConversionProvider(providerName);
-    const reviewDocument = await provider.convert(workerResult.document);
+
+    // F-10: large documents are converted in page windows (see
+    // chunked-convert.ts) rather than a single provider.convert call.
+    // windows/totalPages are only used to render a human-readable
+    // statusDetail ("Converting pages 7-12 of 23...") for pollers — the
+    // actual windowing/merging happens inside convertDocumentInChunks.
+    const pagesPerChunk = resolvePagesPerChunk();
+    const windows = splitIntoPageWindows(
+      workerResult.document.pages,
+      pagesPerChunk,
+    );
+    const totalPages = workerResult.document.pages.length;
+
+    const reviewDocument = await convertDocumentInChunks(
+      provider,
+      workerResult.document,
+      {
+        pagesPerChunk,
+        onChunkProgress: async (completed, total) => {
+          const window = windows[completed - 1];
+          if (total <= 1 || !window) {
+            return;
+          }
+          await updateDocumentJob(id, {
+            statusDetail: `Converting pages ${window.startPage}-${window.endPage} of ${totalPages}…`,
+          });
+        },
+      },
+    );
 
     const readyJob = await saveDocumentJob({
       ...normalizedJob,
@@ -68,6 +102,7 @@ export async function POST(request: Request, context: RouteContext) {
       normalizedDocument: workerResult.document,
       reviewDocument,
       error: undefined,
+      statusDetail: undefined,
     });
 
     return NextResponse.json({ document: readyJob });
