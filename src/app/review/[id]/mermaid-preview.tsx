@@ -2,8 +2,10 @@
 
 import { useEffect, useId, useMemo, useState } from "react";
 import { stripMermaidFence } from "@/lib/diagrams/diagram-ir";
+import { useT } from "@/lib/i18n/locale-context";
 
 export function MermaidPreview({ code }: { code: string }) {
+  const { t } = useT();
   const [svg, setSvg] = useState("");
   const [error, setError] = useState<string | null>(null);
   const reactId = useId();
@@ -41,7 +43,7 @@ export function MermaidPreview({ code }: { code: string }) {
           setError(
             renderError instanceof Error
               ? renderError.message
-              : "Mermaid rendering failed.",
+              : t("review.mermaidRenderFailed"),
           );
         }
       }
@@ -51,7 +53,7 @@ export function MermaidPreview({ code }: { code: string }) {
     return () => {
       active = false;
     };
-  }, [code, elementId]);
+  }, [code, elementId, t]);
 
   if (error) {
     return (
@@ -64,7 +66,7 @@ export function MermaidPreview({ code }: { code: string }) {
   if (!svg) {
     return (
       <div className="rounded-md border border-[#e5e6ea] bg-[#fafafb] p-3 text-sm text-[#8b8f9a]">
-        No Mermaid diagram code.
+        {t("review.noMermaidCode")}
       </div>
     );
   }

@@ -11,6 +11,7 @@ import {
   saveClientDocument,
 } from "@/lib/client-document-store";
 import { appendInstructionNote, type SectionPatch } from "@/lib/document-model";
+import { useT } from "@/lib/i18n/locale-context";
 import type { ReviewSection, StoredDocumentJob } from "@/lib/types";
 
 type DocumentPayload = {
@@ -55,6 +56,7 @@ function resolveSourceImageUrl(
  * needs. The review page component itself stays composition-only.
  */
 export function useReviewDocument(documentId: string) {
+  const { t } = useT();
   const [job, setJob] = useState<StoredDocumentJob | null>(null);
   const [selectedSectionId, setSelectedSectionId] = useState<string | null>(
     null,
@@ -85,7 +87,7 @@ export function useReviewDocument(documentId: string) {
       if (isClientDocumentId(documentId)) {
         const document = readClientDocument(documentId);
         if (!document) {
-          setMessage("Document could not be loaded in this browser.");
+          setMessage(t("common.documentLoadFailedClient"));
           return;
         }
         setJob(document);
@@ -100,7 +102,7 @@ export function useReviewDocument(documentId: string) {
         const payload = (await response.json()) as DocumentPayload;
 
         if (!response.ok) {
-          if (!cancelled) setMessage("Document could not be loaded.");
+          if (!cancelled) setMessage(t("common.documentLoadFailed"));
           return;
         }
 
@@ -111,7 +113,7 @@ export function useReviewDocument(documentId: string) {
           );
         }
       } catch {
-        if (!cancelled) setMessage("Document could not be loaded.");
+        if (!cancelled) setMessage(t("common.documentLoadFailed"));
       }
     }
 
@@ -119,7 +121,7 @@ export function useReviewDocument(documentId: string) {
     return () => {
       cancelled = true;
     };
-  }, [documentId]);
+  }, [documentId, t]);
 
   function updateLocalSection(sectionId: string, patch: SectionPatch) {
     setJob((current) => {
@@ -137,12 +139,12 @@ export function useReviewDocument(documentId: string) {
 
   async function saveSection(sectionId: string, patch: SectionPatch) {
     updateLocalSection(sectionId, patch);
-    setMessage("Saving section...");
+    setMessage(t("review.savingSection"));
     setIsSaving(true);
 
     try {
       if (isClientDocumentId(documentId)) {
-        setMessage("Section saved in this browser.");
+        setMessage(t("review.sectionSavedClient"));
         return;
       }
 
@@ -157,19 +159,19 @@ export function useReviewDocument(documentId: string) {
       const payload = (await response.json()) as DocumentPayload;
 
       if (!response.ok) {
-        setMessage("Section update failed.");
+        setMessage(t("review.sectionUpdateFailed"));
         return;
       }
 
       setJob(payload.document);
-      setMessage("Section saved.");
+      setMessage(t("review.sectionSaved"));
     } finally {
       setIsSaving(false);
     }
   }
 
   async function regenerateSection(sectionId: string, instruction?: string) {
-    setMessage("Regenerating section...");
+    setMessage(t("review.regeneratingSection"));
     setIsSaving(true);
     updateLocalSection(sectionId, { reviewStatus: "regenerating" });
 
@@ -203,9 +205,7 @@ export function useReviewDocument(documentId: string) {
           notes: withNote.notes,
         });
 
-        setMessage(
-          "Demo mode: placeholder regeneration only (no LLM was called).",
-        );
+        setMessage(t("review.demoRegenerateNotice"));
         return;
       }
 
@@ -245,7 +245,7 @@ export function useReviewDocument(documentId: string) {
 
           if (!response.ok || !payload.section) {
             updateLocalSection(sectionId, { reviewStatus: "pending" });
-            setMessage(payload.error ?? "Section regeneration failed.");
+            setMessage(payload.error ?? t("review.sectionRegenerationFailed"));
             return;
           }
 
@@ -265,10 +265,10 @@ export function useReviewDocument(documentId: string) {
           } as ReviewSection;
 
           updateLocalSection(sectionId, regeneratedSection);
-          setMessage("Section regenerated.");
+          setMessage(t("review.sectionRegenerated"));
         } catch {
           updateLocalSection(sectionId, { reviewStatus: "pending" });
-          setMessage("Section regeneration failed.");
+          setMessage(t("review.sectionRegenerationFailed"));
         }
         return;
       }
@@ -300,17 +300,17 @@ export function useReviewDocument(documentId: string) {
           if (payload.document) {
             setJob(payload.document);
           }
-          setMessage(payload.error ?? "Section regeneration failed.");
+          setMessage(payload.error ?? t("review.sectionRegenerationFailed"));
           return;
         }
 
         if (payload.document) {
           setJob(payload.document);
         }
-        setMessage("Section regenerated.");
+        setMessage(t("review.sectionRegenerated"));
       } catch {
         updateLocalSection(sectionId, { reviewStatus: "pending" });
-        setMessage("Section regeneration failed.");
+        setMessage(t("review.sectionRegenerationFailed"));
       }
     } finally {
       setIsSaving(false);
@@ -318,13 +318,14 @@ export function useReviewDocument(documentId: string) {
   }
 
   async function downloadExport(kind: "markdown" | "zip") {
+    const kindLabel = kind.toUpperCase();
     if (job && isClientDocumentId(documentId)) {
       try {
         const result = await buildClientExport(job, kind);
         downloadBlob(result.blob, result.fileName);
-        setMessage(`${kind.toUpperCase()} export downloaded.`);
+        setMessage(t("common.exportDownloaded", { kind: kindLabel }));
       } catch {
-        setMessage(`${kind.toUpperCase()} export failed.`);
+        setMessage(t("common.exportFailed", { kind: kindLabel }));
       }
       return;
     }
@@ -335,7 +336,7 @@ export function useReviewDocument(documentId: string) {
     );
 
     if (!response.ok) {
-      setMessage(`${kind.toUpperCase()} export failed.`);
+      setMessage(t("common.exportFailed", { kind: kindLabel }));
       return;
     }
 
@@ -347,7 +348,7 @@ export function useReviewDocument(documentId: string) {
       kind === "markdown" ? `${documentId}.md` : `${documentId}.zip`;
     anchor.click();
     URL.revokeObjectURL(url);
-    setMessage(`${kind.toUpperCase()} export downloaded.`);
+    setMessage(t("common.exportDownloaded", { kind: kindLabel }));
   }
 
   const acceptedCount = sections.filter(

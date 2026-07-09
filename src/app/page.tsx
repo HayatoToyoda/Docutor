@@ -17,11 +17,13 @@ import {
   saveClientDocument,
 } from "@/lib/client-document-store";
 import { formatBytes } from "@/lib/format-bytes";
+import { useT } from "@/lib/i18n/locale-context";
 import { MAX_DIRECT_UPLOAD_BYTES, MAX_UPLOAD_BYTES } from "@/lib/limits";
 import { isSelfHostedMode } from "@/lib/mode";
 
 export default function Home() {
   const router = useRouter();
+  const { t } = useT();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [files, setFiles] = useState<File[]>([]);
   // Bumped every time a fresh selection is made so BatchQueue (keyed on
@@ -32,6 +34,7 @@ export default function Home() {
   const [isDragging, setIsDragging] = useState(false);
   const selfHosted = isSelfHostedMode();
   const maxUploadBytes = selfHosted ? MAX_UPLOAD_BYTES : MAX_DIRECT_UPLOAD_BYTES;
+  const maxUploadMb = Math.round(maxUploadBytes / (1024 * 1024));
 
   const {
     isConverting,
@@ -79,15 +82,17 @@ export default function Home() {
     event.preventDefault();
 
     if (!file) {
-      setMessage("Choose a PDF, DOCX, PPTX, PNG, or JPG file.");
+      setMessage(t("upload.chooseFileError"));
       return;
     }
 
     if (file.size > maxUploadBytes) {
       setMessage(
-        selfHosted
-          ? "File is too large. The self-hosted limit is 25 MB."
-          : "File is too large. The hosted demo limit is 4 MB.",
+        t(
+          selfHosted
+            ? "common.fileTooLargeSelfHosted"
+            : "common.fileTooLargeHosted",
+        ),
       );
       return;
     }
@@ -103,12 +108,10 @@ export default function Home() {
         <form className="w-full max-w-[620px]" onSubmit={handleSubmit}>
           <div>
             <h1 className="text-[26px] font-semibold leading-tight">
-              Convert a document
+              {t("upload.title")}
             </h1>
             <p className="mt-2 max-w-[590px] text-sm leading-6 text-[#6b6f7b]">
-              Upload a PowerPoint, Word, PDF, or image file. Docutor extracts
-              text, tables, and diagrams, then converts them into structured
-              Markdown you can review section by section.
+              {t("upload.description")}
             </p>
           </div>
 
@@ -138,11 +141,10 @@ export default function Home() {
               ↑
             </span>
             <span className="mt-3 text-sm font-medium">
-              Drop one or more files here, or click to browse
+              {t("upload.dropzone")}
             </span>
             <span className="mt-1 text-xs text-[#8b8f9a]">
-              .pptx · .docx · .pdf · .png · .jpg — max{" "}
-              {selfHosted ? "25 MB" : "4 MB"} per file
+              {t("upload.hint", { mb: maxUploadMb })}
             </span>
           </button>
 
@@ -161,7 +163,7 @@ export default function Home() {
               type="button"
               variant="outline"
             >
-              Try with a sample document
+              {t("upload.tryDemo")}
             </Button>
           ) : null}
 
@@ -178,10 +180,10 @@ export default function Home() {
                   </p>
                 </div>
                 <Badge className="bg-success/10 text-success">
-                  ✓ Ready
+                  {t("upload.fileReady")}
                 </Badge>
                 <Button
-                  aria-label="Remove selected file"
+                  aria-label={t("upload.removeFileAria")}
                   className="text-[#8b8f9a] hover:text-destructive"
                   onClick={resetSelection}
                   size="icon-sm"
@@ -195,7 +197,7 @@ export default function Home() {
               <Separator />
               <div className="flex flex-wrap items-center gap-3 px-4 py-3">
                 <span className="text-xs font-medium text-[#6b6f7b]">
-                  Conversion mode
+                  {t("common.conversionMode")}
                 </span>
                 <ToggleGroup
                   className="rounded-md bg-secondary p-0.5"
@@ -212,7 +214,11 @@ export default function Home() {
                       key={option}
                       value={option}
                     >
-                      {option === "openai" ? "OpenAI" : "Demo"}
+                      {t(
+                        option === "openai"
+                          ? "common.providerOpenAI"
+                          : "common.providerDemo",
+                      )}
                     </ToggleGroupItem>
                   ))}
                 </ToggleGroup>
@@ -239,7 +245,7 @@ export default function Home() {
                   size="lg"
                   type="submit"
                 >
-                  {isConverting ? "Converting document..." : "Convert document →"}
+                  {isConverting ? t("upload.converting") : t("upload.convertCta")}
                 </Button>
               </div>
             </Card>

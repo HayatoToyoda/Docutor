@@ -12,26 +12,28 @@ import {
   listClientDocuments,
   toDocumentSummary,
 } from "@/lib/client-document-store";
+import type { DictionaryKey } from "@/lib/i18n/dictionaries";
+import { useT } from "@/lib/i18n/locale-context";
 import type { DocumentJobStatus, DocumentJobSummary } from "@/lib/types";
 
 type DocumentOrigin = "client" | "server";
 
 type CombinedSummary = DocumentJobSummary & { origin: DocumentOrigin };
 
-function statusLabel(status: DocumentJobStatus) {
+function statusLabelKey(status: DocumentJobStatus): DictionaryKey {
   switch (status) {
     case "ready":
-      return "Ready";
+      return "documents.statusReady";
     case "failed":
-      return "Failed";
+      return "documents.statusFailed";
     case "converting":
-      return "Converting";
+      return "documents.statusConverting";
     case "normalizing":
-      return "Normalizing";
+      return "documents.statusNormalizing";
     case "uploaded":
-      return "Uploaded";
+      return "documents.statusUploaded";
     default:
-      return status;
+      return "documents.statusUploaded";
   }
 }
 
@@ -54,6 +56,7 @@ function sortByUpdatedAtDesc(documents: CombinedSummary[]) {
 }
 
 export default function DocumentsPage() {
+  const { t } = useT();
   const [clientDocuments, setClientDocuments] = useState<CombinedSummary[]>(
     [],
   );
@@ -168,32 +171,29 @@ export default function DocumentsPage() {
         <div className="w-full max-w-[860px]">
           <div>
             <h1 className="text-[26px] font-semibold leading-tight">
-              Document history
+              {t("documents.title")}
             </h1>
             <p className="mt-2 max-w-[590px] text-sm leading-6 text-[#6b6f7b]">
-              Every document converted in this browser, plus any converted by
-              a server-hosted deployment. Reopen a review or remove a
-              document you no longer need.
+              {t("documents.description")}
             </p>
             {!serverReachable && loaded ? (
               <p className="mt-2 text-xs text-[#9aa0ab]">
-                Server documents are unavailable right now — showing
-                documents stored in this browser only.
+                {t("documents.serverUnavailable")}
               </p>
             ) : null}
           </div>
 
           {documents.length === 0 ? (
             <Card className="mt-6 rounded-[10px] p-8 text-center">
-              <p className="text-sm font-medium">No documents yet</p>
+              <p className="text-sm font-medium">{t("documents.emptyTitle")}</p>
               <p className="mt-1 text-xs text-[#8b8f9a]">
-                Convert your first document to see it listed here.
+                {t("documents.emptyDesc")}
               </p>
               <Link
                 className={buttonVariants({ className: "mt-4", size: "sm" })}
                 href="/"
               >
-                Convert a document
+                {t("documents.emptyCta")}
               </Link>
             </Card>
           ) : (
@@ -207,27 +207,43 @@ export default function DocumentsPage() {
                           {document.sourceFileName}
                         </p>
                         <Badge className="bg-secondary text-secondary-foreground">
-                          {document.origin === "client"
-                            ? "This browser"
-                            : "Server"}
+                          {t(
+                            document.origin === "client"
+                              ? "documents.originClient"
+                              : "documents.originServer",
+                          )}
                         </Badge>
                         <Badge className="bg-muted text-muted-foreground uppercase">
                           {document.sourceFileType}
                         </Badge>
                         <Badge className={statusTone(document.status)}>
-                          {statusLabel(document.status)}
+                          {t(statusLabelKey(document.status))}
                         </Badge>
                       </div>
                       <p className="mt-1 text-xs text-[#8b8f9a]">
-                        Updated {formatUpdatedAt(document.updatedAt)} ·{" "}
-                        {document.sectionCount} section
-                        {document.sectionCount === 1 ? "" : "s"} ·{" "}
-                        {document.acceptedCount} accepted
+                        {t("documents.updatedAt", {
+                          date: formatUpdatedAt(document.updatedAt),
+                        })}{" "}
+                        ·{" "}
+                        {t(
+                          document.sectionCount === 1
+                            ? "documents.sectionsCountOne"
+                            : "documents.sectionsCountOther",
+                          { count: document.sectionCount },
+                        )}{" "}
+                        ·{" "}
+                        {t("documents.acceptedCount", {
+                          count: document.acceptedCount,
+                        })}
                         {document.pendingCount > 0
-                          ? ` · ${document.pendingCount} pending`
+                          ? ` · ${t("documents.pendingCount", {
+                              count: document.pendingCount,
+                            })}`
                           : ""}
                         {document.rejectedCount > 0
-                          ? ` · ${document.rejectedCount} rejected`
+                          ? ` · ${t("documents.rejectedCount", {
+                              count: document.rejectedCount,
+                            })}`
                           : ""}
                       </p>
                     </div>
@@ -240,7 +256,7 @@ export default function DocumentsPage() {
                         })}
                         href={`/review/${document.id}`}
                       >
-                        Open review
+                        {t("common.openReview")}
                       </Link>
                       <Button
                         className={
@@ -257,7 +273,9 @@ export default function DocumentsPage() {
                             : "destructive"
                         }
                       >
-                        {armedDeleteId === document.id ? "Delete?" : "Delete"}
+                        {armedDeleteId === document.id
+                          ? t("documents.deleteConfirm")
+                          : t("documents.delete")}
                       </Button>
                     </div>
                   </div>

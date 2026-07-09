@@ -9,6 +9,8 @@ import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { formatBytes } from "@/lib/format-bytes";
+import type { DictionaryKey } from "@/lib/i18n/dictionaries";
+import { useT } from "@/lib/i18n/locale-context";
 
 type BatchRowStatus = "queued" | "converting" | "ready" | "failed";
 
@@ -17,7 +19,11 @@ type BatchRow = {
   file: File;
   status: BatchRowStatus;
   documentId?: string;
-  error?: string;
+  // "oversized" re-derives its message from the current locale at render
+  // time (see rowErrorText below); a plain string here is a one-off runtime
+  // failure message (possibly a server error, left untranslated) captured
+  // at the moment it happened.
+  error?: { kind: "oversized" } | { kind: "message"; text: string };
 };
 
 type BatchQueueProps = {
@@ -33,24 +39,14 @@ type BatchQueueProps = {
   onReset: () => void;
 };
 
-function oversizeMessage(selfHosted: boolean) {
-  return selfHosted
-    ? "File is too large. The self-hosted limit is 25 MB."
-    : "File is too large. The hosted demo limit is 4 MB.";
-}
-
-function buildInitialRows(
-  files: File[],
-  maxUploadBytes: number,
-  selfHosted: boolean,
-): BatchRow[] {
+function buildInitialRows(files: File[], maxUploadBytes: number): BatchRow[] {
   return files.map((file) => {
     const oversized = file.size > maxUploadBytes;
     return {
       id: crypto.randomUUID(),
       file,
       status: oversized ? "failed" : "queued",
-      error: oversized ? oversizeMessage(selfHosted) : undefined,
+      error: oversized ? { kind: "oversized" } : undefined,
     };
   });
 }
@@ -62,11 +58,11 @@ function rowDotClass(status: BatchRowStatus) {
   return "bg-[#9aa0ab]";
 }
 
-function rowStatusLabel(status: BatchRowStatus) {
-  if (status === "ready") return "Ready";
-  if (status === "failed") return "Failed";
-  if (status === "converting") return "Converting…";
-  return "Queued";
+function rowStatusLabelKey(status: BatchRowStatus): DictionaryKey {
+  if (status === "ready") return "batch.statusReady";
+  if (status === "failed") return "batch.statusFailed";
+  if (status === "converting") return "batch.statusConverting";
+  return "batch.statusQueued";
 }
 
 /**
@@ -87,8 +83,9 @@ export function BatchQueue({
   convertSingleFile,
   onReset,
 }: BatchQueueProps) {
+  const { t } = useT();
   const [rows, setRows] = useState<BatchRow[]>(() =>
-    buildInitialRows(files, maxUploadBytes, selfHosted),
+    buildInitialRows(files, maxUploadBytes),
   );
   const [isRunning, setIsRunning] = useState(false);
   const [hasFinished, setHasFinished] = useState(false);
@@ -130,8 +127,13 @@ export function BatchQueue({
       } catch (error) {
         updateRow(row.id, {
           status: "failed",
-          error:
-            error instanceof Error ? error.message : "Conversion failed.",
+          error: {
+            kind: "message",
+            text:
+              error instanceof Error
+                ? error.message
+                : t("upload.statusFailed"),
+          },
         });
       }
     }
@@ -147,21 +149,38 @@ export function BatchQueue({
   const failedCount = rows.filter((row) => row.status === "failed").length;
   const queuedCount = rows.filter((row) => row.status === "queued").length;
 
-  const summary = `${readyCount} of ${total} converted${
-    failedCount > 0 ? ` · ${failedCount} failed` : ""
-  }`;
+  const summary = t("batch.summary", {
+    ready: readyCount,
+    total,
+    failedSuffix:
+      failedCount > 0
+        ? t("batch.summaryFailedSuffix", { failed: failedCount })
+        : "",
+  });
+
+  function rowErrorText(row: BatchRow): string | null {
+    if (!row.error) return null;
+    if (row.error.kind === "oversized") {
+      return t(
+        selfHosted ? "common.fileTooLargeSelfHosted" : "common.fileTooLargeHosted",
+      );
+    }
+    return row.error.text;
+  }
 
   return (
     <Card className="mt-5 gap-0 rounded-[10px] py-0">
       <div className="flex items-center justify-between gap-3 p-4">
         <div className="min-w-0">
           <p className="text-sm font-semibold">
-            {total} file{total === 1 ? "" : "s"} selected
+            {t(total === 1 ? "batch.filesSelectedOne" : "batch.filesSelectedOther", {
+              count: total,
+            })}
           </p>
           <p className="mt-0.5 text-xs text-[#8b8f9a]">{summary}</p>
         </div>
         <Button
-          aria-label="Clear selected files"
+          aria-label={t("batch.clearAria")}
           className="text-[#8b8f9a] hover:text-destructive"
           disabled={isRunning}
           onClick={onReset}
@@ -176,7 +195,7 @@ export function BatchQueue({
       <Separator />
       <div className="flex flex-wrap items-center gap-3 px-4 py-3">
         <span className="text-xs font-medium text-[#6b6f7b]">
-          Conversion mode
+          {t("common.conversionMode")}
         </span>
         <ToggleGroup
           className="rounded-md bg-secondary p-0.5"
@@ -193,7 +212,11 @@ export function BatchQueue({
               key={option}
               value={option}
             >
-              {option === "openai" ? "OpenAI" : "Demo"}
+              {t(
+                option === "openai"
+                  ? "common.providerOpenAI"
+                  : "common.providerDemo",
+              )}
             </ToggleGroupItem>
           ))}
         </ToggleGroup>
@@ -201,52 +224,55 @@ export function BatchQueue({
 
       <Separator />
       <div className="max-h-[360px] overflow-y-auto">
-        {rows.map((row, index) => (
-          <div key={row.id}>
-            <div className="flex flex-wrap items-center gap-3 px-4 py-3">
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent text-[10px] font-bold text-accent-foreground">
-                {row.file.name.split(".").pop()?.toUpperCase() ?? "DOC"}
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium">
-                  {row.file.name}
-                </p>
-                <p className="mt-0.5 text-xs text-[#8b8f9a]">
-                  {formatBytes(row.file.size)}
-                </p>
-                {row.status === "failed" && row.error ? (
-                  <p
-                    className="mt-0.5 truncate text-xs text-destructive"
-                    title={row.error}
-                  >
-                    {row.error}
+        {rows.map((row, index) => {
+          const errorText = rowErrorText(row);
+          return (
+            <div key={row.id}>
+              <div className="flex flex-wrap items-center gap-3 px-4 py-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent text-[10px] font-bold text-accent-foreground">
+                  {row.file.name.split(".").pop()?.toUpperCase() ?? "DOC"}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">
+                    {row.file.name}
                   </p>
+                  <p className="mt-0.5 text-xs text-[#8b8f9a]">
+                    {formatBytes(row.file.size)}
+                  </p>
+                  {row.status === "failed" && errorText ? (
+                    <p
+                      className="mt-0.5 truncate text-xs text-destructive"
+                      title={errorText}
+                    >
+                      {errorText}
+                    </p>
+                  ) : null}
+                </div>
+                <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-secondary-foreground">
+                  <span
+                    className={`h-1.5 w-1.5 rounded-full ${rowDotClass(
+                      row.status,
+                    )}`}
+                  />
+                  {t(rowStatusLabelKey(row.status))}
+                </span>
+                {row.status === "ready" && row.documentId ? (
+                  <Link
+                    className={buttonVariants({
+                      className: "shrink-0",
+                      size: "sm",
+                      variant: "outline",
+                    })}
+                    href={`/review/${row.documentId}`}
+                  >
+                    {t("common.openReview")}
+                  </Link>
                 ) : null}
               </div>
-              <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-secondary-foreground">
-                <span
-                  className={`h-1.5 w-1.5 rounded-full ${rowDotClass(
-                    row.status,
-                  )}`}
-                />
-                {rowStatusLabel(row.status)}
-              </span>
-              {row.status === "ready" && row.documentId ? (
-                <Link
-                  className={buttonVariants({
-                    className: "shrink-0",
-                    size: "sm",
-                    variant: "outline",
-                  })}
-                  href={`/review/${row.documentId}`}
-                >
-                  Open review
-                </Link>
-              ) : null}
+              {index < rows.length - 1 ? <Separator /> : null}
             </div>
-            {index < rows.length - 1 ? <Separator /> : null}
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       <Separator />
@@ -255,9 +281,9 @@ export function BatchQueue({
           <>
             <Alert className="border-success/30 bg-success/5">
               <AlertDescription className="text-success">
-                {readyCount} of {total} documents converted.{" "}
+                {t("batch.finishedAlert", { ready: readyCount, total })}{" "}
                 <Link className="underline" href="/documents">
-                  View all in Documents
+                  {t("batch.viewAllLink")}
                 </Link>
               </AlertDescription>
             </Alert>
@@ -267,7 +293,7 @@ export function BatchQueue({
               type="button"
               variant="outline"
             >
-              Convert more files
+              {t("batch.convertMore")}
             </Button>
           </>
         ) : (
@@ -279,10 +305,13 @@ export function BatchQueue({
             type="button"
           >
             {isRunning
-              ? "Converting documents..."
-              : `Convert ${queuedCount} document${
-                  queuedCount === 1 ? "" : "s"
-                } →`}
+              ? t("batch.converting")
+              : t(
+                  queuedCount === 1
+                    ? "batch.convertCountOne"
+                    : "batch.convertCountOther",
+                  { count: queuedCount },
+                )}
           </Button>
         )}
       </div>
