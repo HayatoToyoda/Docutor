@@ -67,7 +67,10 @@ export function useDocumentUpload() {
     setProgress(0);
   }
 
-  async function convertHosted(file: File, provider: Provider) {
+  async function convertHostedFile(
+    file: File,
+    provider: Provider,
+  ): Promise<{ id: string }> {
     setProgress(24);
     setMessage("Uploading source document...");
 
@@ -78,8 +81,7 @@ export function useDocumentUpload() {
       saveClientDocument(demoDocument);
       setProgress(100);
       setMessage("Review workspace is ready.");
-      router.push(`/review/${demoDocument.id}`);
-      return;
+      return { id: demoDocument.id };
     }
 
     const formData = new FormData();
@@ -102,10 +104,13 @@ export function useDocumentUpload() {
 
     setProgress(100);
     setMessage("Review workspace is ready.");
-    router.push(`/review/${document.id}`);
+    return { id: document.id };
   }
 
-  async function convertSelfHosted(file: File, provider: Provider) {
+  async function convertSelfHostedFile(
+    file: File,
+    provider: Provider,
+  ): Promise<{ id: string }> {
     setProgress(5);
     setMessage("Uploading source document...");
 
@@ -163,7 +168,7 @@ export function useDocumentUpload() {
 
       setProgress(100);
       setMessage("Review workspace is ready.");
-      router.push(`/review/${job.id}`);
+      return { id: job.id };
     } finally {
       if (pollTimerRef.current) {
         clearInterval(pollTimerRef.current);
@@ -172,17 +177,34 @@ export function useDocumentUpload() {
     }
   }
 
+  /**
+   * Runs one file through the hosted or self-hosted conversion pipeline
+   * (whichever `isSelfHostedMode()` selects) and resolves with the resulting
+   * document id, without navigating anywhere. This is the shared core used
+   * by both `convert` below (single-file upload flow, which navigates to
+   * the review page on success) and the batch queue (src/app/batch-queue.tsx),
+   * which calls this once per file, sequentially, and tracks per-row status
+   * itself instead of relying on this hook's single shared
+   * message/progress state.
+   */
+  async function convertSingleFile(
+    file: File,
+    provider: Provider,
+  ): Promise<{ id: string }> {
+    if (isSelfHostedMode()) {
+      return convertSelfHostedFile(file, provider);
+    }
+    return convertHostedFile(file, provider);
+  }
+
   async function convert(file: File, provider: Provider) {
     setIsConverting(true);
     setProgress(0);
     setMessage(null);
 
     try {
-      if (isSelfHostedMode()) {
-        await convertSelfHosted(file, provider);
-      } else {
-        await convertHosted(file, provider);
-      }
+      const { id } = await convertSingleFile(file, provider);
+      router.push(`/review/${id}`);
     } catch (error) {
       setProgress(0);
       setMessage(error instanceof Error ? error.message : "Conversion failed.");
@@ -196,6 +218,7 @@ export function useDocumentUpload() {
     message,
     progress,
     convert,
+    convertSingleFile,
     setMessage,
     resetStatus,
   };

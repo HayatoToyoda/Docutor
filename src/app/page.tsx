@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { ChangeEvent, DragEvent, FormEvent, useRef, useState } from "react";
 import { AppHeader } from "@/app/components/app-header";
+import { BatchQueue } from "@/app/batch-queue";
 import { useDocumentUpload, type Provider } from "@/app/use-document-upload";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -15,44 +16,63 @@ import {
   createDemoDocument,
   saveClientDocument,
 } from "@/lib/client-document-store";
+import { formatBytes } from "@/lib/format-bytes";
 import { MAX_DIRECT_UPLOAD_BYTES, MAX_UPLOAD_BYTES } from "@/lib/limits";
 import { isSelfHostedMode } from "@/lib/mode";
-
-function formatBytes(bytes: number) {
-  if (bytes < 1024 * 1024) {
-    return `${Math.max(1, Math.round(bytes / 1024))} KB`;
-  }
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
 
 export default function Home() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
+  // Bumped every time a fresh selection is made so BatchQueue (keyed on
+  // this) remounts with clean per-row state instead of reusing stale rows
+  // from a previous batch.
+  const [batchKey, setBatchKey] = useState(0);
   const [provider, setProvider] = useState<Provider>("openai");
   const [isDragging, setIsDragging] = useState(false);
   const selfHosted = isSelfHostedMode();
   const maxUploadBytes = selfHosted ? MAX_UPLOAD_BYTES : MAX_DIRECT_UPLOAD_BYTES;
 
-  const { isConverting, message, progress, convert, setMessage, resetStatus } =
-    useDocumentUpload();
+  const {
+    isConverting,
+    message,
+    progress,
+    convert,
+    convertSingleFile,
+    setMessage,
+    resetStatus,
+  } = useDocumentUpload();
 
-  function chooseFile(nextFile?: File) {
-    if (!nextFile) {
+  // Exactly one file keeps today's single-file card UI and flow untouched;
+  // two or more switches to the batch queue (see BatchQueue below).
+  const file = files.length === 1 ? files[0] : null;
+  const isBatch = files.length > 1;
+
+  function chooseFiles(nextFiles: FileList | null) {
+    if (!nextFiles || nextFiles.length === 0) {
       return;
     }
-    setFile(nextFile);
+    setFiles(Array.from(nextFiles));
+    setBatchKey((key) => key + 1);
     resetStatus();
   }
 
   function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
-    chooseFile(event.target.files?.[0]);
+    chooseFiles(event.target.files);
   }
 
   function handleDrop(event: DragEvent<HTMLButtonElement>) {
     event.preventDefault();
     setIsDragging(false);
-    chooseFile(event.dataTransfer.files?.[0]);
+    chooseFiles(event.dataTransfer.files);
+  }
+
+  function resetSelection() {
+    setFiles([]);
+    setMessage(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -95,6 +115,7 @@ export default function Home() {
           <input
             accept=".pdf,.docx,.pptx,.png,.jpg,.jpeg,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.presentationml.presentation,image/png,image/jpeg"
             className="sr-only"
+            multiple
             onChange={handleFileChange}
             ref={fileInputRef}
             type="file"
@@ -117,15 +138,15 @@ export default function Home() {
               ↑
             </span>
             <span className="mt-3 text-sm font-medium">
-              Drop a file here, or click to browse
+              Drop one or more files here, or click to browse
             </span>
             <span className="mt-1 text-xs text-[#8b8f9a]">
               .pptx · .docx · .pdf · .png · .jpg — max{" "}
-              {selfHosted ? "25 MB" : "4 MB"}
+              {selfHosted ? "25 MB" : "4 MB"} per file
             </span>
           </button>
 
-          {!file ? (
+          {files.length === 0 ? (
             <Button
               className="mt-3 w-full"
               onClick={() => {
@@ -162,13 +183,7 @@ export default function Home() {
                 <Button
                   aria-label="Remove selected file"
                   className="text-[#8b8f9a] hover:text-destructive"
-                  onClick={() => {
-                    setFile(null);
-                    setMessage(null);
-                    if (fileInputRef.current) {
-                      fileInputRef.current.value = "";
-                    }
-                  }}
+                  onClick={resetSelection}
                   size="icon-sm"
                   type="button"
                   variant="ghost"
@@ -230,7 +245,20 @@ export default function Home() {
             </Card>
           ) : null}
 
-          {message && !isConverting ? (
+          {isBatch ? (
+            <BatchQueue
+              convertSingleFile={convertSingleFile}
+              files={files}
+              key={batchKey}
+              maxUploadBytes={maxUploadBytes}
+              onProviderChange={setProvider}
+              onReset={resetSelection}
+              provider={provider}
+              selfHosted={selfHosted}
+            />
+          ) : null}
+
+          {message && !isConverting && !isBatch ? (
             <Alert
               className={
                 progress === 100
