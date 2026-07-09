@@ -11,7 +11,33 @@ export type SectionPatch = {
   generatedCode?: string;
   drawioXml?: string;
   reviewStatus?: ReviewSection["reviewStatus"];
+  notes?: string[];
 };
+
+/**
+ * Appends a `[instruction] <text>` audit-trail entry to a section's notes,
+ * used after an instructed regeneration (F-3) to record what the reviewer
+ * asked for. Always appends onto whatever notes are already present rather
+ * than replacing them — callers that need to preserve a prior section's
+ * notes across a regeneration (which `normalizeReviewSection` otherwise
+ * overwrites with the model's fresh output) should fold those notes into
+ * `section.notes` before calling this. A missing/blank instruction is a
+ * no-op that returns the section unchanged.
+ */
+export function appendInstructionNote(
+  section: ReviewSection,
+  instruction: string | undefined,
+): ReviewSection {
+  const trimmed = instruction?.trim();
+  if (!trimmed) {
+    return section;
+  }
+
+  return {
+    ...section,
+    notes: [...(section.notes ?? []), `[instruction] ${trimmed}`],
+  } as ReviewSection;
+}
 
 /**
  * Applies a partial update to one section of a review document, returning a

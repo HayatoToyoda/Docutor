@@ -10,7 +10,7 @@ import {
   readClientDocument,
   saveClientDocument,
 } from "@/lib/client-document-store";
-import type { SectionPatch } from "@/lib/document-model";
+import { appendInstructionNote, type SectionPatch } from "@/lib/document-model";
 import type { ReviewSection, StoredDocumentJob } from "@/lib/types";
 
 type DocumentPayload = {
@@ -168,7 +168,7 @@ export function useReviewDocument(documentId: string) {
     }
   }
 
-  async function regenerateSection(sectionId: string) {
+  async function regenerateSection(sectionId: string, instruction?: string) {
     setMessage("Regenerating section...");
     setIsSaving(true);
     updateLocalSection(sectionId, { reviewStatus: "regenerating" });
@@ -179,8 +179,7 @@ export function useReviewDocument(documentId: string) {
       if (isDemoDocumentId(documentId)) {
         const section = sections.find((item) => item.id === sectionId);
         if (!section) return;
-        updateLocalSection(
-          sectionId,
+        const placeholderPatch: SectionPatch =
           section.type === "diagram"
             ? {
                 generatedCode: `${section.generatedCode}\n  %% Regenerated in demo mode`,
@@ -190,8 +189,20 @@ export function useReviewDocument(documentId: string) {
             : {
                 generatedMarkdown: `${section.generatedMarkdown}\n\nTODO: Regenerated in demo mode for review.`,
                 reviewStatus: "pending",
-              },
+              };
+
+        // Audit trail (F-3): even the demo placeholder records the
+        // instruction as a note, so demo mode still demonstrates the
+        // human-feedback flow end to end.
+        const withNote = appendInstructionNote(
+          { ...section, ...placeholderPatch } as ReviewSection,
+          instruction,
         );
+        updateLocalSection(sectionId, {
+          ...placeholderPatch,
+          notes: withNote.notes,
+        });
+
         setMessage(
           "Demo mode: placeholder regeneration only (no LLM was called).",
         );
@@ -214,6 +225,7 @@ export function useReviewDocument(documentId: string) {
               : item,
           );
 
+          const trimmedInstruction = instruction?.trim();
           const response = await fetch("/api/convert-direct/regenerate", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -223,6 +235,7 @@ export function useReviewDocument(documentId: string) {
               sourceFileType: reviewDocument.sourceFileType,
               sections: requestSections,
               sectionId,
+              ...(trimmedInstruction ? { instruction: trimmedInstruction } : {}),
             }),
           });
           const payload = (await response.json()) as {
@@ -264,9 +277,16 @@ export function useReviewDocument(documentId: string) {
       // provider (DOCUTOR_LLM_PROVIDER) rather than a hardcoded mock
       // provider.
       try {
+        const trimmedInstruction = instruction?.trim();
         const response = await fetch(
           `/api/documents/${documentId}/sections/${sectionId}/regenerate`,
-          { method: "POST" },
+          trimmedInstruction
+            ? {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ instruction: trimmedInstruction }),
+              }
+            : { method: "POST" },
         );
         const payload = (await response.json()) as {
           document?: StoredDocumentJob;

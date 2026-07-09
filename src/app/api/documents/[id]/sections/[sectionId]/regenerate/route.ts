@@ -1,16 +1,45 @@
 import { NextResponse } from "next/server";
+import { appendInstructionNote } from "@/lib/document-model";
 import { createConversionProvider } from "@/lib/llm/providers";
 import { jsonError } from "@/lib/server/http";
 import { readDocumentJob, saveDocumentJob } from "@/lib/server/storage";
 
 export const runtime = "nodejs";
 
+// Optional reviewer instruction (F-3), capped to keep abusive payloads out
+// of the regeneration prompt.
+const MAX_INSTRUCTION_CHARS = 2000;
+
 type RouteContext = {
   params: Promise<{ id: string; sectionId: string }>;
 };
 
-export async function POST(_request: Request, context: RouteContext) {
+type RegenerateRequestBody = {
+  instruction?: string;
+};
+
+// This route previously took no request body at all (a bare POST). F-3
+// adds an *optional* JSON body carrying a reviewer instruction, so a
+// missing body, an empty body, or non-JSON body must all keep working as
+// "no instruction" rather than failing the request.
+async function readInstruction(request: Request): Promise<string | undefined> {
+  let body: RegenerateRequestBody;
+  try {
+    body = (await request.json()) as RegenerateRequestBody;
+  } catch {
+    return undefined;
+  }
+
+  if (typeof body?.instruction !== "string") {
+    return undefined;
+  }
+
+  return body.instruction.slice(0, MAX_INSTRUCTION_CHARS);
+}
+
+export async function POST(request: Request, context: RouteContext) {
   const { id, sectionId } = await context.params;
+  const instruction = await readInstruction(request);
   const document = await readDocumentJob(id);
 
   if (!document?.reviewDocument || !document.normalizedDocument) {
@@ -53,11 +82,30 @@ export async function POST(_request: Request, context: RouteContext) {
   }
 
   try {
+    const previousSection = document.reviewDocument.sections[sectionIndex];
     const regeneratedSection = await provider.regenerateSection(
       document.normalizedDocument,
-      document.reviewDocument.sections[sectionIndex],
+      previousSection,
+      { instruction },
     );
-    sections[sectionIndex] = regeneratedSection;
+
+    // Audit trail (F-3): normalizeReviewSection sets `notes` purely from the
+    // model's output, discarding the prior section's notes. When an
+    // instruction was given, fold the prior notes back in and record the
+    // instruction so the regeneration leaves a visible history.
+    const finalSection = instruction?.trim()
+      ? appendInstructionNote(
+          {
+            ...regeneratedSection,
+            notes: [
+              ...(previousSection.notes ?? []),
+              ...(regeneratedSection.notes ?? []),
+            ],
+          },
+          instruction,
+        )
+      : regeneratedSection;
+    sections[sectionIndex] = finalSection;
 
     const updated = await saveDocumentJob({
       ...regeneratingJob,
@@ -68,7 +116,7 @@ export async function POST(_request: Request, context: RouteContext) {
       },
     });
 
-    return NextResponse.json({ document: updated, section: regeneratedSection });
+    return NextResponse.json({ document: updated, section: finalSection });
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Section regeneration failed.";
