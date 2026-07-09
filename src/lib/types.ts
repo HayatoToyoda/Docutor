@@ -26,7 +26,11 @@ export type DiagramFormat = "mermaid" | "drawio";
 
 export type ConversionMode = "mock" | "real";
 
-export type ConversionProviderName = "openai" | "codex-local" | "mock";
+export type ConversionProviderName =
+  | "openai"
+  | "anthropic"
+  | "codex-local"
+  | "mock";
 
 export type NormalizedAsset = {
   id: string;

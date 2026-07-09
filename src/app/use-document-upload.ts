@@ -11,7 +11,21 @@ import type { DictionaryKey } from "@/lib/i18n/dictionaries";
 import { isSelfHostedMode } from "@/lib/mode";
 import type { DocumentJobStatus, StoredDocumentJob } from "@/lib/types";
 
-export type Provider = "openai" | "mock";
+// "anthropic" is only offered in self-hosted mode (see page.tsx /
+// batch-queue.tsx) — the hosted /api/convert-direct flow stays OpenAI-only.
+export type Provider = "openai" | "anthropic" | "mock";
+
+// Shared between page.tsx and batch-queue.tsx's provider toggles.
+export function providerLabelKey(provider: Provider): DictionaryKey {
+  switch (provider) {
+    case "openai":
+      return "common.providerOpenAI";
+    case "anthropic":
+      return "common.providerAnthropic";
+    case "mock":
+      return "common.providerDemo";
+  }
+}
 
 const POLL_INTERVAL_MS = 1500;
 
@@ -153,9 +167,10 @@ export function useDocumentUpload() {
     }, POLL_INTERVAL_MS);
 
     try {
-      const providerParam = provider === "mock" ? "mock" : "openai";
+      // Provider's members ("openai" | "anthropic" | "mock") are already
+      // valid values for the convert route's ?provider= query param.
       const convertResponse = await fetch(
-        `/api/documents/${job.id}/convert?provider=${providerParam}`,
+        `/api/documents/${job.id}/convert?provider=${provider}`,
         { method: "POST" },
       );
       const convertPayload = (await convertResponse.json()) as {

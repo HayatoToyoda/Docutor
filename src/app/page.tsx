@@ -4,7 +4,11 @@ import { useRouter } from "next/navigation";
 import { ChangeEvent, DragEvent, FormEvent, useRef, useState } from "react";
 import { AppHeader } from "@/app/components/app-header";
 import { BatchQueue } from "@/app/batch-queue";
-import { useDocumentUpload, type Provider } from "@/app/use-document-upload";
+import {
+  providerLabelKey,
+  useDocumentUpload,
+  type Provider,
+} from "@/app/use-document-upload";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -35,6 +39,12 @@ export default function Home() {
   const selfHosted = isSelfHostedMode();
   const maxUploadBytes = selfHosted ? MAX_UPLOAD_BYTES : MAX_DIRECT_UPLOAD_BYTES;
   const maxUploadMb = Math.round(maxUploadBytes / (1024 * 1024));
+  // The Anthropic provider only runs through the self-hosted server
+  // pipeline (see F-5) — the hosted /api/convert-direct flow stays
+  // OpenAI-only, so the toggle only offers it in self-hosted mode.
+  const providerOptions: Provider[] = selfHosted
+    ? ["openai", "anthropic", "mock"]
+    : ["openai", "mock"];
 
   const {
     isConverting,
@@ -208,17 +218,13 @@ export default function Home() {
                   spacing={0}
                   value={[provider]}
                 >
-                  {(["openai", "mock"] as Provider[]).map((option) => (
+                  {providerOptions.map((option) => (
                     <ToggleGroupItem
                       className="rounded-[5px] px-3 py-1 text-xs font-medium hover:bg-transparent data-pressed:bg-white data-pressed:text-foreground data-pressed:shadow-sm"
                       key={option}
                       value={option}
                     >
-                      {t(
-                        option === "openai"
-                          ? "common.providerOpenAI"
-                          : "common.providerDemo",
-                      )}
+                      {t(providerLabelKey(option))}
                     </ToggleGroupItem>
                   ))}
                 </ToggleGroup>

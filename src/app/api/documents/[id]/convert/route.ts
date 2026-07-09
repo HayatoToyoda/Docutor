@@ -21,7 +21,12 @@ function providerFromRequest(request: Request): ConversionProviderName | undefin
     return undefined;
   }
 
-  if (provider === "openai" || provider === "mock" || provider === "codex-local") {
+  if (
+    provider === "openai" ||
+    provider === "anthropic" ||
+    provider === "mock" ||
+    provider === "codex-local"
+  ) {
     return provider;
   }
 
