@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -8,6 +9,7 @@ import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { extractSectionAttentionMarkers } from "@/lib/attention";
 import type { SectionPatch } from "@/lib/document-model";
 import type { ReviewSection } from "@/lib/types";
 import { DrawioEditor } from "./drawio-editor";
@@ -18,6 +20,124 @@ import {
   statusTone,
   typeLabel,
 } from "./section-status";
+
+type SourceTab = "text" | "image";
+
+// Zoom overlay for the page image: click anywhere on the backdrop or press
+// Escape to close.
+function ImageZoomModal({
+  src,
+  alt,
+  onClose,
+}: {
+  src: string;
+  alt: string;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex cursor-zoom-out items-center justify-center bg-black/80 p-6"
+      onClick={onClose}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        alt={alt}
+        className="max-h-[90vh] max-w-[90vw] object-contain"
+        src={src}
+      />
+    </div>
+  );
+}
+
+// Tabbed ORIGINAL SOURCE pane shared by diagram and non-diagram sections
+// (F-2): lets a reviewer compare either the extracted text or the source
+// page image against the generated output, with the image zoomable. Keyed
+// by section id from the caller so tab/zoom state resets whenever the
+// selected section changes.
+function OriginalSourcePane({
+  section,
+  sourceImageUrl,
+}: {
+  section: ReviewSection;
+  sourceImageUrl: string | null;
+}) {
+  const hasImage = Boolean(sourceImageUrl);
+  const hasText = Boolean(section.originalText);
+  const preferImage = !hasText || isDiagramSection(section);
+  const [tab, setTab] = useState<SourceTab>(
+    hasImage && preferImage ? "image" : "text",
+  );
+  const [zoomed, setZoomed] = useState(false);
+
+  return (
+    <Card className="gap-0 rounded-[10px] py-0">
+      <div className="flex items-center justify-between px-3.5 py-2.5">
+        <span className="text-xs font-semibold tracking-[0.04em] text-[#6b6f7b]">
+          ORIGINAL SOURCE — PAGE {section.sourcePage}
+        </span>
+        <ToggleGroup
+          className="rounded-md bg-secondary p-0.5"
+          onValueChange={(values) => {
+            const next = values[0];
+            if (next) setTab(next as SourceTab);
+          }}
+          spacing={0}
+          value={[tab]}
+        >
+          <ToggleGroupItem
+            className="rounded-[5px] px-3 py-1 text-xs font-medium hover:bg-transparent data-pressed:bg-white data-pressed:text-foreground data-pressed:shadow-sm"
+            value="text"
+          >
+            Text
+          </ToggleGroupItem>
+          <ToggleGroupItem
+            className="rounded-[5px] px-3 py-1 text-xs font-medium hover:bg-transparent data-pressed:bg-white data-pressed:text-foreground data-pressed:shadow-sm disabled:pointer-events-none disabled:opacity-40"
+            disabled={!hasImage}
+            value="image"
+          >
+            Page image
+          </ToggleGroupItem>
+        </ToggleGroup>
+      </div>
+      <Separator />
+      {tab === "image" && sourceImageUrl ? (
+        <button
+          className="flex min-h-[330px] w-full cursor-zoom-in items-center justify-center overflow-auto bg-[#fafafb] p-3"
+          onClick={() => setZoomed(true)}
+          type="button"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            alt={`Original source, page ${section.sourcePage}`}
+            className="max-h-[520px] w-auto max-w-full rounded border border-[#e5e6ea] object-contain"
+            src={sourceImageUrl}
+          />
+        </button>
+      ) : (
+        <div className="min-h-[330px] whitespace-pre-wrap bg-[#fafafb] p-4 text-[13px] leading-7 text-[#4a4e58]">
+          {section.originalText ||
+            "Original source text was not included for this section."}
+        </div>
+      )}
+
+      {zoomed && sourceImageUrl ? (
+        <ImageZoomModal
+          alt={`Original source, page ${section.sourcePage}`}
+          onClose={() => setZoomed(false)}
+          src={sourceImageUrl}
+        />
+      ) : null}
+    </Card>
+  );
+}
 
 export function SectionDetail({
   warnings,
@@ -40,6 +160,42 @@ export function SectionDetail({
   onSave: (patch: SectionPatch) => void;
   onUpdateLocal: (patch: SectionPatch) => void;
 }) {
+  // Accept-with-unresolved-markers confirmation (F-8): the first click on a
+  // section that still has TODO:/Unclear: markers arms a warning-styled
+  // confirmation instead of blocking with window.confirm; a second click
+  // within the window accepts. Resets when the selected section changes or
+  // after 3s of inactivity.
+  const [acceptConfirmArmed, setAcceptConfirmArmed] = useState(false);
+  const selectedSectionId = selectedSection?.id ?? null;
+  const unresolvedMarkerCount = selectedSection
+    ? extractSectionAttentionMarkers(selectedSection).length
+    : 0;
+
+  // Reset the armed confirmation when the selected section changes. This
+  // adjusts state during render (React's recommended pattern for resetting
+  // state on a prop change) rather than in an effect, avoiding an extra
+  // render pass.
+  const [trackedSectionId, setTrackedSectionId] = useState(selectedSectionId);
+  if (trackedSectionId !== selectedSectionId) {
+    setTrackedSectionId(selectedSectionId);
+    if (acceptConfirmArmed) setAcceptConfirmArmed(false);
+  }
+
+  useEffect(() => {
+    if (!acceptConfirmArmed) return;
+    const timer = setTimeout(() => setAcceptConfirmArmed(false), 3000);
+    return () => clearTimeout(timer);
+  }, [acceptConfirmArmed]);
+
+  function handleAcceptClick() {
+    if (unresolvedMarkerCount > 0 && !acceptConfirmArmed) {
+      setAcceptConfirmArmed(true);
+      return;
+    }
+    setAcceptConfirmArmed(false);
+    onSave({ reviewStatus: "accepted" });
+  }
+
   return (
     <div className="mx-auto max-w-[1120px]">
       {warnings.length ? (
@@ -92,12 +248,18 @@ export function SectionDetail({
                 Reject
               </Button>
               <Button
-                className="bg-success text-success-foreground hover:bg-success/90"
+                className={
+                  acceptConfirmArmed
+                    ? "bg-warning text-warning-foreground hover:bg-warning/90"
+                    : "bg-success text-success-foreground hover:bg-success/90"
+                }
                 disabled={isSaving}
-                onClick={() => onSave({ reviewStatus: "accepted" })}
+                onClick={handleAcceptClick}
                 type="button"
               >
-                ✓ Accept
+                {acceptConfirmArmed
+                  ? `Accept with ${unresolvedMarkerCount} unresolved?`
+                  : "✓ Accept"}
               </Button>
             </div>
           </div>
@@ -105,27 +267,11 @@ export function SectionDetail({
           {isDiagramSection(selectedSection) ? (
             <div className="mt-4 space-y-4">
               <div className="grid gap-4 xl:grid-cols-2">
-                <Card className="gap-0 rounded-[10px] py-0">
-                  <div className="px-3.5 py-2.5 text-xs font-semibold tracking-[0.04em] text-[#6b6f7b]">
-                    ORIGINAL SOURCE — PAGE {selectedSection.sourcePage}
-                  </div>
-                  <Separator />
-                  {sourceImageUrl ? (
-                    <div className="flex min-h-[330px] items-center justify-center overflow-auto bg-[#fafafb] p-3">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        alt={`Original source, page ${selectedSection.sourcePage}`}
-                        className="max-h-[520px] w-auto max-w-full rounded border border-[#e5e6ea] object-contain"
-                        src={sourceImageUrl}
-                      />
-                    </div>
-                  ) : (
-                    <div className="min-h-[330px] whitespace-pre-wrap bg-[#fafafb] p-4 text-[13px] leading-7 text-[#4a4e58]">
-                      {selectedSection.originalText ||
-                        "The original visual was captured from the source document. Compare its structure with the generated diagram."}
-                    </div>
-                  )}
-                </Card>
+                <OriginalSourcePane
+                  key={selectedSection.id}
+                  section={selectedSection}
+                  sourceImageUrl={sourceImageUrl}
+                />
                 <Card className="gap-0 rounded-[10px] py-0">
                   <div className="flex items-center justify-between px-3.5 py-2.5">
                     <span className="text-xs font-semibold tracking-[0.04em] text-[#6b6f7b]">
@@ -179,29 +325,11 @@ export function SectionDetail({
             </div>
           ) : (
             <div className="mt-4 grid items-start gap-4 xl:grid-cols-[5fr_7fr]">
-              <Card className="gap-0 rounded-[10px] py-0">
-                <div className="px-3.5 py-2.5 text-xs font-semibold tracking-[0.04em] text-[#6b6f7b]">
-                  ORIGINAL SOURCE — PAGE {selectedSection.sourcePage}
-                </div>
-                <Separator />
-                <div className="min-h-[320px] whitespace-pre-wrap bg-[#fafafb] p-4 text-[13px] leading-7 text-[#4a4e58]">
-                  {selectedSection.originalText ||
-                    "Original source text was not included for this section."}
-                </div>
-                {sourceImageUrl ? (
-                  <>
-                    <Separator />
-                    <div className="flex justify-center overflow-auto bg-[#fafafb] p-3">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        alt={`Original source, page ${selectedSection.sourcePage}`}
-                        className="max-h-[360px] w-auto max-w-full rounded border border-[#e5e6ea] object-contain"
-                        src={sourceImageUrl}
-                      />
-                    </div>
-                  </>
-                ) : null}
-              </Card>
+              <OriginalSourcePane
+                key={selectedSection.id}
+                section={selectedSection}
+                sourceImageUrl={sourceImageUrl}
+              />
 
               <Card className="gap-0 rounded-[10px] py-0">
                 <div className="flex items-center justify-between px-3.5 py-2">

@@ -11,6 +11,7 @@ export function SectionList({
   acceptedCount,
   progress,
   onSelectSection,
+  children,
 }: {
   documentTitle: string;
   sections: ReviewSection[];
@@ -18,6 +19,7 @@ export function SectionList({
   acceptedCount: number;
   progress: number;
   onSelectSection: (sectionId: string) => void;
+  children?: React.ReactNode;
 }) {
   return (
     <aside className="flex min-h-0 flex-col border-r border-border bg-card">
@@ -60,6 +62,8 @@ export function SectionList({
           </button>
         ))}
       </div>
+
+      {children}
     </aside>
   );
 }
