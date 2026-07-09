@@ -11,7 +11,13 @@
   F-8(TODO/Unclear 品質パネル+未解決 Accept の確認+`src/lib/attention.ts`)、
   F-3(指示付き再生成: ポップオーバー入力 → 両再生成 API → プロンプトの
   Reviewer instruction ブロック、`[instruction]` notes 監査証跡)。
-- 次: M2(F-1 ドキュメント履歴ダッシュボード、F-6 エージェント向けエクスポート)。
+- **M2 完了**: F-1(`/documents` 履歴ダッシュボード+一覧/削除 API+ヘッダー導線)、
+  F-6(`agent/sections.jsonl` + `agent/document.json` + document.md の YAML front-matter)。
+- **M3 完了**: F-4(複数ファイル一括変換キュー。フォルダドロップは未実装 —
+  プレーンな複数選択/ドロップのみ)、F-7(日本語 UI: `src/lib/i18n/` の型安全辞書
+  159 キー+ヘッダーの EN/日本語トグル+localStorage 永続化)。
+- 進行中: M4 — F-5(Anthropic プロバイダ)。残り: F-9(永続ストレージ)、
+  F-10(大容量ファイルのページ分割変換)。
 
 ## 背景 — 現状の機能はプロダクトの価値に対して限定的
 
