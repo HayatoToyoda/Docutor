@@ -159,7 +159,14 @@ export function useDocumentUpload() {
           document: StoredDocumentJob;
         };
         setProgress(progressForStatus(statusPayload.document.status));
-        setMessage(t(messageKeyForStatus(statusPayload.document.status)));
+        // F-10: while a large document is being converted in page windows,
+        // the job carries a human-readable statusDetail ("Converting pages
+        // 7-12 of 23...") that's more useful than the generic converting
+        // message — prefer it when present.
+        setMessage(
+          statusPayload.document.statusDetail ??
+            t(messageKeyForStatus(statusPayload.document.status)),
+        );
       } catch {
         // Transient polling failure; the convert response below remains
         // the source of truth for success/failure.
