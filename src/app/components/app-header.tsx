@@ -13,7 +13,10 @@ export function AppHeader({
   activeStep,
   status,
 }: {
-  activeStep: AppStep;
+  // Optional so pages outside the upload → review → export flow (e.g. the
+  // F-1 history dashboard at /documents) can render the header without
+  // highlighting a step that doesn't apply to them.
+  activeStep?: AppStep;
   status?: string;
 }) {
   return (
@@ -59,12 +62,20 @@ export function AppHeader({
           ))}
         </nav>
 
-        {status ? (
-          <div className="hidden min-w-0 items-center gap-2 text-xs text-[#6b6f7b] lg:flex">
-            <span className="h-2 w-2 shrink-0 rounded-full bg-success" />
-            <span className="truncate">{status}</span>
-          </div>
-        ) : null}
+        <div className="flex shrink-0 items-center gap-4">
+          {status ? (
+            <div className="hidden min-w-0 items-center gap-2 text-xs text-[#6b6f7b] lg:flex">
+              <span className="h-2 w-2 shrink-0 rounded-full bg-success" />
+              <span className="truncate">{status}</span>
+            </div>
+          ) : null}
+          <Link
+            className="text-xs font-medium text-[#6b6f7b] underline-offset-4 hover:text-[#4c5fd5] hover:underline"
+            href="/documents"
+          >
+            Documents
+          </Link>
+        </div>
       </div>
     </header>
   );

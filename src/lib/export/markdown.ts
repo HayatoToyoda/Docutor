@@ -1,4 +1,4 @@
-import { stripMermaidFence } from "@/lib/diagrams/diagram-ir";
+import { renderSectionBodyMarkdown } from "@/lib/document-model";
 import type { ReviewDocument, ReviewSection } from "@/lib/types";
 
 function renderSection(section: ReviewSection) {
@@ -8,24 +8,37 @@ function renderSection(section: ReviewSection) {
     blocks.push(section.notes.map((note) => `> ${note}`).join("\n"));
   }
 
-  if (section.type === "diagram") {
-    // generatedCode is the editable source of truth for diagrams (it drives
-    // the live preview too), so export must render from it rather than the
-    // possibly-stale generatedMarkdown snapshot captured at conversion time.
-    if (section.format === "mermaid") {
-      blocks.push(
-        `\`\`\`mermaid\n${stripMermaidFence(section.generatedCode)}\n\`\`\``,
-      );
-    } else if (section.generatedMarkdown) {
-      blocks.push(section.generatedMarkdown.trim());
-    } else {
-      blocks.push("TODO: draw.io diagram exported as related asset.");
-    }
-  } else {
-    blocks.push(section.generatedMarkdown.trim());
-  }
+  // generatedCode is the editable source of truth for diagrams (it drives
+  // the live preview too), so export must render from it rather than the
+  // possibly-stale generatedMarkdown snapshot captured at conversion time —
+  // renderSectionBodyMarkdown (shared with the agent JSONL export) applies
+  // that rule.
+  blocks.push(renderSectionBodyMarkdown(section));
 
   return blocks.filter(Boolean).join("\n\n");
+}
+
+function escapeYamlDoubleQuoted(value: string) {
+  return value.replace(/"/g, '\\"');
+}
+
+/**
+ * YAML front-matter (F-6) so `document.md` is directly parseable by
+ * front-matter-aware Markdown/RAG tooling without inspecting the body. Kept
+ * to the four fields callers actually need — title/source for
+ * provenance, generated for freshness, warnings as a cheap "does this need
+ * a human look" signal — rather than duplicating everything already in
+ * `manifest.json`/`agent/document.json`.
+ */
+function renderFrontMatter(document: ReviewDocument) {
+  return [
+    "---",
+    `title: "${escapeYamlDoubleQuoted(document.title)}"`,
+    `source: "${escapeYamlDoubleQuoted(document.sourceFileName)}"`,
+    `generated: "${document.updatedAt}"`,
+    `warnings: ${document.warnings.length}`,
+    "---",
+  ].join("\n");
 }
 
 export function renderReviewDocumentMarkdown(document: ReviewDocument) {
@@ -54,5 +67,5 @@ export function renderReviewDocumentMarkdown(document: ReviewDocument) {
     blocks.push(...acceptedSections.map(renderSection));
   }
 
-  return `${blocks.join("\n\n")}\n`;
+  return `${renderFrontMatter(document)}\n\n${blocks.join("\n\n")}\n`;
 }
