@@ -16,6 +16,7 @@ import {
   isClientDocumentId,
   readClientDocument,
 } from "@/lib/client-document-store";
+import { useT } from "@/lib/i18n/locale-context";
 import type { StoredDocumentJob } from "@/lib/types";
 
 type DocumentPayload = {
@@ -24,6 +25,7 @@ type DocumentPayload = {
 
 export default function CompletePage() {
   const params = useParams<{ id: string }>();
+  const { t } = useT();
   const [job, setJob] = useState<StoredDocumentJob | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -34,7 +36,7 @@ export default function CompletePage() {
         if (document) {
           setJob(document);
         } else {
-          setMessage("Document could not be loaded in this browser.");
+          setMessage(t("common.documentLoadFailedClient"));
         }
         return;
       }
@@ -44,21 +46,22 @@ export default function CompletePage() {
       if (response.ok) {
         setJob(payload.document);
       } else {
-        setMessage("Document could not be loaded.");
+        setMessage(t("common.documentLoadFailed"));
       }
     }
 
     loadDocument();
-  }, [params.id]);
+  }, [params.id, t]);
 
   async function downloadExport(kind: "markdown" | "zip") {
+    const kindLabel = kind.toUpperCase();
     if (job && isClientDocumentId(params.id)) {
       try {
         const result = await buildClientExport(job, kind);
         downloadBlob(result.blob, result.fileName);
-        setMessage(`${kind.toUpperCase()} export downloaded.`);
+        setMessage(t("common.exportDownloaded", { kind: kindLabel }));
       } catch {
-        setMessage(`${kind.toUpperCase()} export failed.`);
+        setMessage(t("common.exportFailed", { kind: kindLabel }));
       }
       return;
     }
@@ -69,7 +72,7 @@ export default function CompletePage() {
     );
 
     if (!response.ok) {
-      setMessage(`${kind.toUpperCase()} export failed.`);
+      setMessage(t("common.exportFailed", { kind: kindLabel }));
       return;
     }
 
@@ -80,7 +83,7 @@ export default function CompletePage() {
     anchor.download = kind === "markdown" ? `${params.id}.md` : `${params.id}.zip`;
     anchor.click();
     URL.revokeObjectURL(url);
-    setMessage(`${kind.toUpperCase()} export downloaded.`);
+    setMessage(t("common.exportDownloaded", { kind: kindLabel }));
   }
 
   const reviewDocument = job?.reviewDocument;
@@ -103,20 +106,23 @@ export default function CompletePage() {
   const exportFiles = [
     {
       name: "document.md",
-      detail: "Accepted sections in structured Markdown",
-      type: "Markdown",
+      detail: t("complete.fileMarkdownDetail"),
+      type: t("complete.typeMarkdown"),
+      isFolder: false,
     },
     {
       name: "manifest.json",
-      detail: "Document metadata and section traceability",
-      type: "JSON",
+      detail: t("complete.fileManifestDetail"),
+      type: t("complete.typeJson"),
+      isFolder: false,
     },
     ...(assetCount > 0
       ? [
           {
             name: "assets/",
-            detail: `${assetCount} captured source assets`,
-            type: "Folder",
+            detail: t("complete.fileAssetsDetail", { count: assetCount }),
+            type: t("complete.typeFolder"),
+            isFolder: true,
           },
         ]
       : []),
@@ -124,21 +130,26 @@ export default function CompletePage() {
       ? [
           {
             name: "diagrams/",
-            detail: `${diagramCount} Mermaid or draw.io source files`,
-            type: "Folder",
+            detail: t("complete.fileDiagramsDetail", { count: diagramCount }),
+            type: t("complete.typeFolder"),
+            isFolder: true,
           },
         ]
       : []),
     {
       name: "agent/",
-      detail: "RAG-ready sections and document metadata",
-      type: "Folder",
+      detail: t("complete.fileAgentDetail"),
+      type: t("complete.typeFolder"),
+      isFolder: true,
     },
   ];
 
   return (
     <main className="flex min-h-screen flex-col bg-background text-foreground">
-      <AppHeader activeStep="export" status={message ?? "Ready to export"} />
+      <AppHeader
+        activeStep="export"
+        status={message ?? t("complete.readyToExport")}
+      />
 
       <section className="flex flex-1 justify-center px-5 py-10 sm:py-14">
         <div className="w-full max-w-[760px]">
@@ -147,20 +158,24 @@ export default function CompletePage() {
               ✓
             </span>
             <h1 className="mt-4 text-[26px] font-semibold leading-tight">
-              Conversion complete
+              {t("complete.title")}
             </h1>
             <p className="mt-2 text-sm text-[#6b6f7b]">
-              {reviewDocument?.sourceFileName ?? job?.sourceFileName ?? "Document"}{" "}
-              → structured Markdown knowledge asset
+              {t("complete.subtitle", {
+                file:
+                  reviewDocument?.sourceFileName ??
+                  job?.sourceFileName ??
+                  t("common.documentFallbackTitle"),
+              })}
             </p>
           </div>
 
           <div className="mt-7 grid grid-cols-2 gap-3 sm:grid-cols-4">
             {[
-              { value: sections.length, label: "Sections" },
-              { value: acceptedCount, label: "Accepted" },
-              { value: attentionCount, label: "Needs attention" },
-              { value: pageCount, label: "Source pages" },
+              { value: sections.length, label: t("complete.statSections") },
+              { value: acceptedCount, label: t("complete.statAccepted") },
+              { value: attentionCount, label: t("complete.statAttention") },
+              { value: pageCount, label: t("complete.statPages") },
             ].map((stat) => (
               <Card className="rounded-[10px] px-4 py-3.5" key={stat.label}>
                 <p className="text-[22px] font-semibold">{stat.value}</p>
@@ -174,9 +189,11 @@ export default function CompletePage() {
           {attentionCount > 0 ? (
             <Alert className="mt-4 border-warning/30 bg-warning/5">
               <AlertDescription className="text-warning">
-                The export contains <strong>{attentionCount} TODO / Unclear markers</strong>.
-                Docutor keeps ambiguous source details visible instead of filling
-                them silently.
+                {t("complete.attentionAlertBefore")}
+                <strong>
+                  {t("complete.attentionAlertCount", { count: attentionCount })}
+                </strong>
+                {t("complete.attentionAlertAfter")}
               </AlertDescription>
             </Alert>
           ) : null}
@@ -185,14 +202,14 @@ export default function CompletePage() {
             <div className="flex items-center justify-between gap-3 px-4 py-3">
               <div>
                 <p className="text-xs font-semibold tracking-[0.04em] text-[#6b6f7b]">
-                  EXPORT PACKAGE
+                  {t("complete.exportPackageHeading")}
                 </p>
                 <p className="mt-1 text-xs text-[#9aa0ab]">
-                  Reviewed content bundled for downstream agent workflows
+                  {t("complete.exportPackageDesc")}
                 </p>
               </div>
               <Badge className="bg-success/10 text-success">
-                Ready for agents
+                {t("complete.readyForAgents")}
               </Badge>
             </div>
             <Separator />
@@ -201,7 +218,7 @@ export default function CompletePage() {
               <div key={file.name}>
                 <div className="flex items-center gap-3 px-4 py-3">
                   <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-accent text-xs font-bold text-accent-foreground">
-                    {file.type === "Folder" ? "/" : "≡"}
+                    {file.isFolder ? "/" : "≡"}
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-mono text-xs font-medium">
@@ -229,7 +246,7 @@ export default function CompletePage() {
               size="lg"
               type="button"
             >
-              ↓ Download Markdown
+              {t("complete.downloadMarkdown")}
             </Button>
             <Button
               className="flex-1 py-3 text-sm font-semibold"
@@ -239,7 +256,7 @@ export default function CompletePage() {
               type="button"
               variant="outline"
             >
-              ↓ Download ZIP package
+              {t("complete.downloadZip")}
             </Button>
           </div>
 
@@ -248,13 +265,13 @@ export default function CompletePage() {
               className="text-[#6b6f7b] underline underline-offset-4 hover:text-[#4c5fd5]"
               href={`/review/${params.id}`}
             >
-              ← Back to review
+              {t("complete.backToReview")}
             </Link>
             <Link
               className="text-[#6b6f7b] underline underline-offset-4 hover:text-[#4c5fd5]"
               href="/"
             >
-              Start a new document
+              {t("complete.startNew")}
             </Link>
           </div>
         </div>

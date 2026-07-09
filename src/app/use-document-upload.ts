@@ -6,6 +6,8 @@ import {
   createDemoDocument,
   saveClientDocument,
 } from "@/lib/client-document-store";
+import { useT } from "@/lib/i18n/locale-context";
+import type { DictionaryKey } from "@/lib/i18n/dictionaries";
 import { isSelfHostedMode } from "@/lib/mode";
 import type { DocumentJobStatus, StoredDocumentJob } from "@/lib/types";
 
@@ -31,20 +33,20 @@ function progressForStatus(status: DocumentJobStatus): number {
   }
 }
 
-function messageForStatus(status: DocumentJobStatus): string {
+function messageKeyForStatus(status: DocumentJobStatus): DictionaryKey {
   switch (status) {
     case "uploaded":
-      return "Uploaded. Extracting content...";
+      return "upload.statusUploaded";
     case "normalizing":
-      return "Extracting text, tables, and page images...";
+      return "upload.statusNormalizing";
     case "converting":
-      return "Converting with the LLM provider...";
+      return "upload.statusConverting";
     case "ready":
-      return "Review workspace is ready.";
+      return "upload.workspaceReady";
     case "failed":
-      return "Conversion failed.";
+      return "upload.statusFailed";
     default:
-      return "Working...";
+      return "upload.statusWorking";
   }
 }
 
@@ -57,6 +59,7 @@ function messageForStatus(status: DocumentJobStatus): string {
  */
 export function useDocumentUpload() {
   const router = useRouter();
+  const { t } = useT();
   const [isConverting, setIsConverting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
@@ -72,15 +75,15 @@ export function useDocumentUpload() {
     provider: Provider,
   ): Promise<{ id: string }> {
     setProgress(24);
-    setMessage("Uploading source document...");
+    setMessage(t("upload.uploadingSource"));
 
     if (provider === "mock") {
       setProgress(68);
-      setMessage("Preparing browser-based demo content...");
+      setMessage(t("upload.preparingDemo"));
       const demoDocument = createDemoDocument(file);
       saveClientDocument(demoDocument);
       setProgress(100);
-      setMessage("Review workspace is ready.");
+      setMessage(t("upload.workspaceReady"));
       return { id: demoDocument.id };
     }
 
@@ -88,7 +91,7 @@ export function useDocumentUpload() {
     formData.append("file", file);
 
     setProgress(52);
-    setMessage("Analyzing the document with OpenAI...");
+    setMessage(t("upload.analyzingOpenAI"));
     const uploadResponse = await fetch("/api/convert-direct", {
       method: "POST",
       body: formData,
@@ -96,14 +99,14 @@ export function useDocumentUpload() {
     const uploadPayload = await uploadResponse.json();
 
     if (!uploadResponse.ok) {
-      throw new Error(uploadPayload.error ?? "Upload failed.");
+      throw new Error(uploadPayload.error ?? t("upload.uploadFailed"));
     }
 
     const document = uploadPayload.document as StoredDocumentJob;
     saveClientDocument(document);
 
     setProgress(100);
-    setMessage("Review workspace is ready.");
+    setMessage(t("upload.workspaceReady"));
     return { id: document.id };
   }
 
@@ -112,7 +115,7 @@ export function useDocumentUpload() {
     provider: Provider,
   ): Promise<{ id: string }> {
     setProgress(5);
-    setMessage("Uploading source document...");
+    setMessage(t("upload.uploadingSource"));
 
     const formData = new FormData();
     formData.append("file", file);
@@ -124,12 +127,12 @@ export function useDocumentUpload() {
     const createPayload = await createResponse.json();
 
     if (!createResponse.ok) {
-      throw new Error(createPayload.error ?? "Upload failed.");
+      throw new Error(createPayload.error ?? t("upload.uploadFailed"));
     }
 
     const job = createPayload.document as StoredDocumentJob;
     setProgress(progressForStatus(job.status));
-    setMessage(messageForStatus(job.status));
+    setMessage(t(messageKeyForStatus(job.status)));
 
     // Poll job status for real progress while the (long-running) convert
     // request is in flight. Cleared in the `finally` below regardless of
@@ -142,7 +145,7 @@ export function useDocumentUpload() {
           document: StoredDocumentJob;
         };
         setProgress(progressForStatus(statusPayload.document.status));
-        setMessage(messageForStatus(statusPayload.document.status));
+        setMessage(t(messageKeyForStatus(statusPayload.document.status)));
       } catch {
         // Transient polling failure; the convert response below remains
         // the source of truth for success/failure.
@@ -161,13 +164,11 @@ export function useDocumentUpload() {
       };
 
       if (!convertResponse.ok) {
-        throw new Error(
-          convertPayload.error ?? "Document conversion failed.",
-        );
+        throw new Error(convertPayload.error ?? t("upload.statusFailed"));
       }
 
       setProgress(100);
-      setMessage("Review workspace is ready.");
+      setMessage(t("upload.workspaceReady"));
       return { id: job.id };
     } finally {
       if (pollTimerRef.current) {
@@ -207,7 +208,9 @@ export function useDocumentUpload() {
       router.push(`/review/${id}`);
     } catch (error) {
       setProgress(0);
-      setMessage(error instanceof Error ? error.message : "Conversion failed.");
+      setMessage(
+        error instanceof Error ? error.message : t("upload.statusFailed"),
+      );
     } finally {
       setIsConverting(false);
     }

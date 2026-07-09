@@ -11,14 +11,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { extractSectionAttentionMarkers } from "@/lib/attention";
 import type { SectionPatch } from "@/lib/document-model";
+import { useT } from "@/lib/i18n/locale-context";
 import type { ReviewSection } from "@/lib/types";
 import { DrawioEditor } from "./drawio-editor";
 import { MermaidPreview } from "./mermaid-preview";
 import {
   isDiagramSection,
-  statusLabel,
+  statusLabelKey,
   statusTone,
-  typeLabel,
+  typeLabelKey,
 } from "./section-status";
 
 type SourceTab = "text" | "image";
@@ -69,6 +70,7 @@ function OriginalSourcePane({
   section: ReviewSection;
   sourceImageUrl: string | null;
 }) {
+  const { t } = useT();
   const hasImage = Boolean(sourceImageUrl);
   const hasText = Boolean(section.originalText);
   const preferImage = !hasText || isDiagramSection(section);
@@ -76,12 +78,15 @@ function OriginalSourcePane({
     hasImage && preferImage ? "image" : "text",
   );
   const [zoomed, setZoomed] = useState(false);
+  const imageAlt = t("review.originalSourceAlt", {
+    page: section.sourcePage,
+  });
 
   return (
     <Card className="gap-0 rounded-[10px] py-0">
       <div className="flex items-center justify-between px-3.5 py-2.5">
         <span className="text-xs font-semibold tracking-[0.04em] text-[#6b6f7b]">
-          ORIGINAL SOURCE — PAGE {section.sourcePage}
+          {t("review.originalSourceHeading", { page: section.sourcePage })}
         </span>
         <ToggleGroup
           className="rounded-md bg-secondary p-0.5"
@@ -96,14 +101,14 @@ function OriginalSourcePane({
             className="rounded-[5px] px-3 py-1 text-xs font-medium hover:bg-transparent data-pressed:bg-white data-pressed:text-foreground data-pressed:shadow-sm"
             value="text"
           >
-            Text
+            {t("common.text")}
           </ToggleGroupItem>
           <ToggleGroupItem
             className="rounded-[5px] px-3 py-1 text-xs font-medium hover:bg-transparent data-pressed:bg-white data-pressed:text-foreground data-pressed:shadow-sm disabled:pointer-events-none disabled:opacity-40"
             disabled={!hasImage}
             value="image"
           >
-            Page image
+            {t("review.pageImage")}
           </ToggleGroupItem>
         </ToggleGroup>
       </div>
@@ -116,21 +121,20 @@ function OriginalSourcePane({
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            alt={`Original source, page ${section.sourcePage}`}
+            alt={imageAlt}
             className="max-h-[520px] w-auto max-w-full rounded border border-[#e5e6ea] object-contain"
             src={sourceImageUrl}
           />
         </button>
       ) : (
         <div className="min-h-[330px] whitespace-pre-wrap bg-[#fafafb] p-4 text-[13px] leading-7 text-[#4a4e58]">
-          {section.originalText ||
-            "Original source text was not included for this section."}
+          {section.originalText || t("review.originalTextMissing")}
         </div>
       )}
 
       {zoomed && sourceImageUrl ? (
         <ImageZoomModal
-          alt={`Original source, page ${section.sourcePage}`}
+          alt={imageAlt}
           onClose={() => setZoomed(false)}
           src={sourceImageUrl}
         />
@@ -160,6 +164,7 @@ export function SectionDetail({
   onSave: (patch: SectionPatch) => void;
   onUpdateLocal: (patch: SectionPatch) => void;
 }) {
+  const { t } = useT();
   // Accept-with-unresolved-markers confirmation (F-8): the first click on a
   // section that still has TODO:/Unclear: markers arms a warning-styled
   // confirmation instead of blocking with window.confirm; a second click
@@ -233,17 +238,17 @@ export function SectionDetail({
             <div>
               <div className="flex items-center gap-2">
                 <Badge className="bg-accent text-accent-foreground">
-                  {typeLabel(selectedSection)}
+                  {t(typeLabelKey(selectedSection))}
                 </Badge>
                 <Badge className={statusTone(selectedSection.reviewStatus)}>
-                  {statusLabel(selectedSection.reviewStatus)}
+                  {t(statusLabelKey(selectedSection.reviewStatus))}
                 </Badge>
               </div>
               <h1 className="mt-2 text-xl font-semibold">
                 {selectedSection.title}
               </h1>
               <p className="mt-1 text-xs text-[#8b8f9a]">
-                Source: page {selectedSection.sourcePage}
+                {t("review.sourcePage", { page: selectedSection.sourcePage })}
               </p>
             </div>
 
@@ -256,7 +261,7 @@ export function SectionDetail({
                   type="button"
                   variant="outline"
                 >
-                  {isSaving ? "↻ Regenerating…" : "↻ Regenerate"}
+                  {isSaving ? t("review.regenerating") : t("review.regenerate")}
                 </Button>
 
                 {regenerateOpen ? (
@@ -267,7 +272,7 @@ export function SectionDetail({
                       onChange={(event) =>
                         setInstructionDraft(event.target.value)
                       }
-                      placeholder="Optional instruction — e.g. 'The arrow between steps 2 and 3 points the wrong way'"
+                      placeholder={t("review.instructionPlaceholder")}
                       value={instructionDraft}
                     />
                     <div className="flex justify-end gap-2">
@@ -277,7 +282,7 @@ export function SectionDetail({
                         type="button"
                         variant="ghost"
                       >
-                        Cancel
+                        {t("common.cancel")}
                       </Button>
                       <Button
                         disabled={isSaving}
@@ -285,7 +290,7 @@ export function SectionDetail({
                         size="sm"
                         type="button"
                       >
-                        Regenerate
+                        {t("review.regenerateSubmit")}
                       </Button>
                     </div>
                   </Card>
@@ -297,7 +302,7 @@ export function SectionDetail({
                 type="button"
                 variant="destructive"
               >
-                Reject
+                {t("common.reject")}
               </Button>
               <Button
                 className={
@@ -310,8 +315,8 @@ export function SectionDetail({
                 type="button"
               >
                 {acceptConfirmArmed
-                  ? `Accept with ${unresolvedMarkerCount} unresolved?`
-                  : "✓ Accept"}
+                  ? t("review.acceptConfirm", { count: unresolvedMarkerCount })
+                  : t("review.accept")}
               </Button>
             </div>
           </div>
@@ -327,7 +332,7 @@ export function SectionDetail({
                 <Card className="gap-0 rounded-[10px] py-0">
                   <div className="flex items-center justify-between px-3.5 py-2.5">
                     <span className="text-xs font-semibold tracking-[0.04em] text-[#6b6f7b]">
-                      GENERATED PREVIEW
+                      {t("review.generatedPreview")}
                     </span>
                     <span className="text-[11px] text-[#9aa0ab]">
                       {selectedSection.format}
@@ -338,7 +343,7 @@ export function SectionDetail({
                     <MermaidPreview code={selectedSection.generatedCode} />
                   ) : (
                     <div className="p-4 text-sm text-[#6b6f7b]">
-                      Open the draw.io editor below to inspect this diagram.
+                      {t("review.openDrawioHint")}
                     </div>
                   )}
                 </Card>
@@ -346,7 +351,7 @@ export function SectionDetail({
 
               <Card className="gap-0 rounded-[10px] py-0">
                 <div className="px-3.5 py-2.5 text-xs font-semibold tracking-[0.04em] text-[#6b6f7b]">
-                  DIAGRAM SOURCE
+                  {t("review.diagramSource")}
                 </div>
                 <Separator />
                 {selectedSection.format === "mermaid" ? (
@@ -386,7 +391,7 @@ export function SectionDetail({
               <Card className="gap-0 rounded-[10px] py-0">
                 <div className="flex items-center justify-between px-3.5 py-2">
                   <span className="text-xs font-semibold tracking-[0.04em] text-[#6b6f7b]">
-                    GENERATED MARKDOWN
+                    {t("review.generatedMarkdown")}
                   </span>
                   <ToggleGroup
                     className="rounded-md bg-secondary p-0.5"
@@ -403,7 +408,7 @@ export function SectionDetail({
                         key={mode}
                         value={mode}
                       >
-                        {mode === "preview" ? "Preview" : "Edit"}
+                        {t(mode === "preview" ? "common.preview" : "common.edit")}
                       </ToggleGroupItem>
                     ))}
                   </ToggleGroup>
@@ -435,7 +440,7 @@ export function SectionDetail({
         </>
       ) : (
         <Card className="rounded-[10px] p-6 text-sm text-[#6b6f7b]">
-          No review sections are available.
+          {t("review.noSections")}
         </Card>
       )}
     </div>

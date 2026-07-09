@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import type { AttentionMarker } from "@/lib/attention";
+import { useT } from "@/lib/i18n/locale-context";
 
 /**
  * Compact quality panel for the review sidebar (F-8): surfaces every
@@ -17,6 +18,7 @@ export function QualityPanel({
   markers: AttentionMarker[];
   onSelectSection: (sectionId: string) => void;
 }) {
+  const { t } = useT();
   const [expanded, setExpanded] = useState(false);
 
   if (markers.length === 0) {
@@ -32,7 +34,7 @@ export function QualityPanel({
         type="button"
       >
         <span className="text-xs font-semibold tracking-[0.04em] text-[#6b6f7b]">
-          Needs attention
+          {t("review.needsAttention")}
         </span>
         <span className="flex items-center gap-1.5">
           <Badge className="bg-warning/10 text-warning">
