@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
+import { getDocumentRepository } from "@/lib/server/document-repository";
 import { jsonError } from "@/lib/server/http";
-import { deleteDocumentJob, readDocumentJob } from "@/lib/server/storage";
 
 export const runtime = "nodejs";
 
@@ -10,7 +10,7 @@ type RouteContext = {
 
 export async function GET(_request: Request, context: RouteContext) {
   const { id } = await context.params;
-  const document = await readDocumentJob(id);
+  const document = await getDocumentRepository().get(id);
 
   if (!document) {
     return jsonError("Document not found.", 404);
@@ -23,7 +23,7 @@ export async function GET(_request: Request, context: RouteContext) {
 // (original upload, assets, job.json).
 export async function DELETE(_request: Request, context: RouteContext) {
   const { id } = await context.params;
-  const deleted = await deleteDocumentJob(id);
+  const deleted = await getDocumentRepository().delete(id);
 
   if (!deleted) {
     return jsonError("Document not found.", 404);

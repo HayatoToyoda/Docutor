@@ -19,9 +19,14 @@
 - **M4 一部完了**: F-5(Anthropic プロバイダ: Messages API + 強制 tool use、
   セルフホストのトグルに追加)、F-10(ページ分割変換: `chunked-convert.ts`、
   `DOCUTOR_PAGES_PER_CHUNK` 既定 6、`statusDetail` による進捗表示)。
-- 残り: F-9(永続ストレージ)。ステップ 1 の `DocumentRepository` 抽象化は
-  この環境で実施可能だが、ステップ 2(Vercel Blob/KV 実装)は対象インフラが
-  必要なため、デプロイ環境を用意した上で別途実施すること。
+- **F-9 ステップ 1 完了**: `DocumentRepository` インターフェース+
+  `FilesystemDocumentRepository`(`DOCUTOR_STORAGE_DRIVER` で選択、既定
+  filesystem)。全 API ルートがリポジトリ経由になり、ページ画像・ZIP アセットの
+  封じ込めチェックも `readAsset` に集約。
+- **残り(要インフラ)**: F-9 ステップ 2 のみ — Vercel Blob/KV 実装
+  (`DOCUTOR_STORAGE_DRIVER=vercel-blob`)と共有リンク。デプロイ環境を
+  用意した上で `document-repository.ts` に実装を追加すること。API ルートの
+  変更は不要な構造になっている。
 
 ## 背景 — 現状の機能はプロダクトの価値に対して限定的
 

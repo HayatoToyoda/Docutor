@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { appendInstructionNote } from "@/lib/document-model";
 import { createConversionProvider } from "@/lib/llm/providers";
+import { getDocumentRepository } from "@/lib/server/document-repository";
 import { jsonError } from "@/lib/server/http";
-import { readDocumentJob, saveDocumentJob } from "@/lib/server/storage";
 
 export const runtime = "nodejs";
 
@@ -53,7 +53,8 @@ async function readInstruction(request: Request): Promise<string | undefined> {
 export async function POST(request: Request, context: RouteContext) {
   const { id, sectionId } = await context.params;
   const instruction = await readInstruction(request);
-  const document = await readDocumentJob(id);
+  const repository = getDocumentRepository();
+  const document = await repository.get(id);
 
   if (!document?.reviewDocument || !document.normalizedDocument) {
     return jsonError("Converted review document not found.", 404);
@@ -80,7 +81,7 @@ export async function POST(request: Request, context: RouteContext) {
     ...sections[sectionIndex],
     reviewStatus: "regenerating",
   };
-  const regeneratingJob = await saveDocumentJob({
+  const regeneratingJob = await repository.save({
     ...document,
     reviewDocument: {
       ...document.reviewDocument,
@@ -120,7 +121,7 @@ export async function POST(request: Request, context: RouteContext) {
       : regeneratedSection;
     sections[sectionIndex] = finalSection;
 
-    const updated = await saveDocumentJob({
+    const updated = await repository.save({
       ...regeneratingJob,
       reviewDocument: {
         ...regeneratingReviewDocument,
@@ -139,7 +140,7 @@ export async function POST(request: Request, context: RouteContext) {
       reviewStatus: "pending",
       notes: [...(previousSection.notes ?? []), message],
     };
-    const failed = await saveDocumentJob({
+    const failed = await repository.save({
       ...regeneratingJob,
       reviewDocument: {
         ...regeneratingReviewDocument,
