@@ -1,9 +1,11 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { AppHeader } from "@/app/components/app-header";
 import { Button } from "@/components/ui/button";
+import { extractAttentionMarkers } from "@/lib/attention";
+import { QualityPanel } from "./quality-panel";
 import { SectionDetail } from "./section-detail";
 import { SectionList } from "./section-list";
 import { useReviewDocument } from "./use-review-document";
@@ -31,6 +33,16 @@ export default function ReviewPage() {
     progress,
   } = useReviewDocument(params.id);
 
+  const attentionMarkers = useMemo(
+    () => (reviewDocument ? extractAttentionMarkers(reviewDocument) : []),
+    [reviewDocument],
+  );
+
+  function selectSection(sectionId: string) {
+    setSelectedSectionId(sectionId);
+    setViewMode("preview");
+  }
+
   return (
     <main className="flex min-h-screen flex-col bg-background text-foreground">
       <AppHeader
@@ -44,14 +56,16 @@ export default function ReviewPage() {
           documentTitle={
             reviewDocument?.sourceFileName ?? job?.sourceFileName ?? "Document"
           }
-          onSelectSection={(sectionId) => {
-            setSelectedSectionId(sectionId);
-            setViewMode("preview");
-          }}
+          onSelectSection={selectSection}
           progress={progress}
           sections={sections}
           selectedSectionId={selectedSection?.id ?? null}
-        />
+        >
+          <QualityPanel
+            markers={attentionMarkers}
+            onSelectSection={selectSection}
+          />
+        </SectionList>
 
         <section className="flex min-h-0 min-w-0 flex-col">
           <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-7 sm:py-6">

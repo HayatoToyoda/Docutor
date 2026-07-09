@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { countAttentionMarkers } from "@/lib/attention";
 import {
   buildClientExport,
   downloadBlob,
@@ -94,10 +95,9 @@ export default function CompletePage() {
   const diagramCount = sections.filter(
     (section) => section.type === "diagram",
   ).length;
-  const attentionCount = sections.reduce((count, section) => {
-    const matches = section.generatedMarkdown.match(/TODO:|Unclear:/g);
-    return count + (matches?.length ?? 0);
-  }, 0);
+  const attentionCount = reviewDocument
+    ? countAttentionMarkers(reviewDocument)
+    : 0;
 
   const assetCount = reviewDocument?.assets.length ?? 0;
   const exportFiles = [
