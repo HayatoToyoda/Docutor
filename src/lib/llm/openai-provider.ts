@@ -16,17 +16,19 @@ import {
   buildDocumentConversionPrompt,
   buildSectionRegenerationPrompt,
 } from "@/lib/llm/prompts";
+import {
+  appendPageImageTruncationWarning,
+  collectPageImages,
+} from "@/lib/llm/page-images";
 import type {
   ConversionProvider,
   NormalizedDocument,
   RegenerateSectionOptions,
-  ReviewDocument,
   ReviewSection,
   SourceFileType,
 } from "@/lib/types";
 
 const DEFAULT_MODEL = "gpt-5.5";
-const MAX_PAGE_IMAGES = 6;
 
 export class OpenAIProviderError extends Error {
   constructor(message: string) {
@@ -48,10 +50,7 @@ async function buildUserContent(document: NormalizedDocument) {
     },
   ];
 
-  const allPageImages = document.assets.filter(
-    (asset) => asset.kind === "page-image",
-  );
-  const pageImages = allPageImages.slice(0, MAX_PAGE_IMAGES);
+  const { pageImages, truncatedPageImageCount } = collectPageImages(document);
 
   for (const asset of pageImages) {
     try {
@@ -68,30 +67,7 @@ async function buildUserContent(document: NormalizedDocument) {
     }
   }
 
-  return {
-    content,
-    truncatedPageImageCount: Math.max(
-      0,
-      allPageImages.length - MAX_PAGE_IMAGES,
-    ),
-  };
-}
-
-function appendPageImageTruncationWarning(
-  document: ReviewDocument,
-  truncatedPageImageCount: number,
-): ReviewDocument {
-  if (truncatedPageImageCount <= 0) {
-    return document;
-  }
-
-  return {
-    ...document,
-    warnings: [
-      ...document.warnings,
-      `Only the first ${MAX_PAGE_IMAGES} page images were provided to the model; pages beyond that were converted from extracted text only.`,
-    ],
-  };
+  return { content, truncatedPageImageCount };
 }
 
 function createClient() {
