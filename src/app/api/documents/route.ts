@@ -1,20 +1,19 @@
 import { NextResponse } from "next/server";
 import { detectSourceFileType } from "@/lib/file-types";
 import { MAX_UPLOAD_BYTES } from "@/lib/limits";
-import { jsonError } from "@/lib/server/http";
 import {
-  createDocumentJob,
-  listDocumentJobSummaries,
+  getDocumentRepository,
   StorageError,
-} from "@/lib/server/storage";
+} from "@/lib/server/document-repository";
+import { jsonError } from "@/lib/server/http";
 
 export const runtime = "nodejs";
 
 // F-1 history dashboard: lists server-stored documents as lightweight
-// summaries (see listDocumentJobSummaries for why full review documents are
+// summaries (see DocumentRepository.list for why full review documents are
 // never returned here).
 export async function GET() {
-  const documents = await listDocumentJobSummaries();
+  const documents = await getDocumentRepository().list();
   return NextResponse.json({ documents });
 }
 
@@ -40,7 +39,7 @@ export async function POST(request: Request) {
 
   try {
     const data = Buffer.from(await file.arrayBuffer());
-    const job = await createDocumentJob({
+    const job = await getDocumentRepository().create({
       sourceFileName: file.name,
       mimeType: file.type || "application/octet-stream",
       size: file.size,

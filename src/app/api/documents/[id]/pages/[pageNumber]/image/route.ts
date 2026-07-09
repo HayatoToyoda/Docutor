@@ -1,7 +1,6 @@
-import { readFile, realpath } from "node:fs/promises";
 import path from "node:path";
+import { getDocumentRepository } from "@/lib/server/document-repository";
 import { jsonError } from "@/lib/server/http";
-import { documentDir, readDocumentJob } from "@/lib/server/storage";
 
 export const runtime = "nodejs";
 
@@ -23,7 +22,8 @@ export async function GET(_request: Request, context: RouteContext) {
     return jsonError("Invalid page number.", 400);
   }
 
-  const job = await readDocumentJob(id);
+  const repository = getDocumentRepository();
+  const job = await repository.get(id);
 
   if (!job?.normalizedDocument) {
     return jsonError("Page image not found.", 404);
@@ -37,43 +37,29 @@ export async function GET(_request: Request, context: RouteContext) {
     return jsonError("Page image not found.", 404);
   }
 
-  // Defense in depth: even though imagePath comes from our own Python
-  // Worker output (not user input), verify it still resolves inside this
-  // document's directory before reading it from disk. readDocumentJob()
-  // above already validated `id`, so documentDir(id) cannot throw here.
-  // Resolve both paths through realpath (not just path.resolve) so a
-  // symlink inside the doc dir can't be used to escape it.
-  let documentRoot: string;
-  let resolvedImagePath: string;
-  try {
-    documentRoot = await realpath(documentDir(id));
-    resolvedImagePath = await realpath(path.resolve(page.imagePath));
-  } catch {
-    return jsonError("Invalid asset path.", 404);
-  }
-
-  const relative = path.relative(documentRoot, resolvedImagePath);
-
-  if (relative.startsWith("..") || path.isAbsolute(relative)) {
-    return jsonError("Invalid asset path.", 400);
-  }
-
-  const extension = path.extname(resolvedImagePath).toLowerCase();
+  const extension = path.extname(page.imagePath).toLowerCase();
   const contentType = CONTENT_TYPES[extension];
 
   if (!contentType) {
     return jsonError("Unsupported asset type.", 400);
   }
 
-  try {
-    const data = await readFile(resolvedImagePath);
-    return new Response(new Uint8Array(data), {
-      headers: {
-        "Content-Type": contentType,
-        "Cache-Control": "private, max-age=3600",
-      },
-    });
-  } catch {
+  // Defense in depth: even though imagePath comes from our own Python
+  // Worker output (not user input), the repository verifies it still
+  // resolves inside this document's storage scope before reading it (see
+  // FilesystemDocumentRepository.readAsset). readAsset returns null both
+  // for a missing file and for an out-of-scope path, so both collapse into
+  // the same 404 here.
+  const data = await repository.readAsset(id, page.imagePath);
+
+  if (!data) {
     return jsonError("Page image could not be read.", 404);
   }
+
+  return new Response(new Uint8Array(data), {
+    headers: {
+      "Content-Type": contentType,
+      "Cache-Control": "private, max-age=3600",
+    },
+  });
 }
