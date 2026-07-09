@@ -4,7 +4,13 @@
 // means the two persistence layers can't drift apart on how a section patch
 // is applied or how an export manifest/ZIP is assembled.
 import { stripMermaidFence } from "@/lib/diagrams/diagram-ir";
-import type { ReviewAsset, ReviewDocument, ReviewSection, SourceFileType, StoredDocumentJob } from "@/lib/types";
+import type {
+  ReviewAsset,
+  ReviewDocument,
+  ReviewSection,
+  SourceFileType,
+  StoredDocumentJob,
+} from "@/lib/types";
 
 export type SectionPatch = {
   generatedMarkdown?: string;
@@ -88,6 +94,56 @@ export function applySectionPatch(
   };
 }
 
+/**
+ * Renders the body Markdown for a single section — the diagram-vs-text
+ * rendering rule (diagrams render from `generatedCode`, not the possibly
+ * stale `generatedMarkdown` snapshot; see `applySectionPatch` above for why)
+ * lives here once so both the human-readable Markdown export
+ * (`src/lib/export/markdown.ts`) and the agent JSONL export
+ * (`buildAgentSectionsJsonl` below) can't drift apart on it. Does not
+ * include the section's title/page header — callers that need that (the
+ * Markdown export) add it around this body.
+ */
+export function renderSectionBodyMarkdown(section: ReviewSection): string {
+  if (section.type === "diagram") {
+    if (section.format === "mermaid") {
+      return `\`\`\`mermaid\n${stripMermaidFence(section.generatedCode)}\n\`\`\``;
+    }
+    if (section.generatedMarkdown) {
+      return section.generatedMarkdown.trim();
+    }
+    return "TODO: draw.io diagram exported as related asset.";
+  }
+
+  return section.generatedMarkdown.trim();
+}
+
+/**
+ * Section review-status tallies shared by the F-1 history dashboard's two
+ * data sources: the server's `listDocumentJobSummaries` (reading job.json
+ * off disk) and the client store's `toDocumentSummary` (reading
+ * localStorage). Keeping the tally rule in one place means "pending" and
+ * "regenerating" sections are counted the same way — as still-open review
+ * work — on both dashboards. Sections without a review document (job not
+ * yet converted) simply produce all-zero counts.
+ */
+export function summarizeSectionCounts(sections: ReviewSection[]) {
+  return {
+    sectionCount: sections.length,
+    acceptedCount: sections.filter(
+      (section) => section.reviewStatus === "accepted",
+    ).length,
+    pendingCount: sections.filter(
+      (section) =>
+        section.reviewStatus === "pending" ||
+        section.reviewStatus === "regenerating",
+    ).length,
+    rejectedCount: sections.filter(
+      (section) => section.reviewStatus === "rejected",
+    ).length,
+  };
+}
+
 export type ExportManifest = {
   id: string;
   sourceFileName: string;
@@ -168,4 +224,87 @@ export function collectDiagramExports(
   }
 
   return files;
+}
+
+/**
+ * Builds `agent/sections.jsonl` (F-6): one JSON line per *accepted* section,
+ * shaped as an independent RAG chunk that carries its own traceability
+ * fields (`sourceFile`/`sourcePage`) rather than requiring a join against
+ * `agent/document.json`. Pending/rejected/regenerating sections are excluded
+ * — the export represents reviewer-approved knowledge, matching the rule
+ * `renderReviewDocumentMarkdown` already applies to `document.md`.
+ *
+ * Each record's keys are written in one fixed order (id, type, title,
+ * sourceFile, sourcePage, markdown, reviewStatus, then the
+ * present-only optional keys) so the JSONL output is deterministic across
+ * runs, which is what the unit tests pin down.
+ */
+export function buildAgentSectionsJsonl(reviewDocument: ReviewDocument): string {
+  const lines = reviewDocument.sections
+    .filter((section) => section.reviewStatus === "accepted")
+    .map((section) => {
+      const record = {
+        id: section.id,
+        type: section.type,
+        title: section.title,
+        sourceFile: reviewDocument.sourceFileName,
+        sourcePage: section.sourcePage,
+        markdown: renderSectionBodyMarkdown(section),
+        reviewStatus: section.reviewStatus,
+        ...(section.notes?.length ? { notes: section.notes } : {}),
+        ...(section.type === "diagram" && section.format === "mermaid"
+          ? { mermaid: stripMermaidFence(section.generatedCode) }
+          : {}),
+        ...(section.type === "diagram" && section.drawioXml
+          ? { drawioXml: section.drawioXml }
+          : {}),
+      };
+
+      return JSON.stringify(record);
+    });
+
+  return lines.length > 0 ? `${lines.join("\n")}\n` : "";
+}
+
+export type AgentDocumentMetadata = {
+  id: string;
+  title: string;
+  sourceFileName: string;
+  sourceFileType: SourceFileType;
+  convertedAt: string;
+  exportedAt: string;
+  warnings: string[];
+  sectionOrder: string[];
+  acceptedSectionIds: string[];
+};
+
+/**
+ * Builds `agent/document.json` (F-6): document-level metadata to accompany
+ * `agent/sections.jsonl` — the section order (for reconstructing sequence)
+ * and which of those ids were accepted (duplicated from the per-line
+ * `reviewStatus` for convenience, since a consumer that only wants "what
+ * shipped" shouldn't have to scan every JSONL line).
+ */
+export function buildAgentDocumentJson(
+  job: StoredDocumentJob,
+): AgentDocumentMetadata {
+  if (!job.reviewDocument) {
+    throw new Error("Review document not found.");
+  }
+
+  const { reviewDocument } = job;
+
+  return {
+    id: job.id,
+    title: reviewDocument.title,
+    sourceFileName: job.sourceFileName,
+    sourceFileType: job.sourceFileType,
+    convertedAt: reviewDocument.createdAt,
+    exportedAt: new Date().toISOString(),
+    warnings: reviewDocument.warnings,
+    sectionOrder: reviewDocument.sections.map((section) => section.id),
+    acceptedSectionIds: reviewDocument.sections
+      .filter((section) => section.reviewStatus === "accepted")
+      .map((section) => section.id),
+  };
 }

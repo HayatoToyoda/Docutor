@@ -2,13 +2,16 @@ import JSZip from "jszip";
 import { diagramIRToMermaid } from "@/lib/diagrams/diagram-ir";
 import {
   applySectionPatch,
+  buildAgentDocumentJson,
+  buildAgentSectionsJsonl,
   buildExportManifest,
   collectDiagramExports,
+  summarizeSectionCounts,
   type SectionPatch,
 } from "@/lib/document-model";
 import { renderReviewDocumentMarkdown } from "@/lib/export/markdown";
 import { detectSourceFileType } from "@/lib/file-types";
-import type { DiagramIR, StoredDocumentJob } from "@/lib/types";
+import type { DiagramIR, DocumentJobSummary, StoredDocumentJob } from "@/lib/types";
 
 const STORAGE_PREFIX = "docutor:document:";
 
@@ -44,6 +47,64 @@ export function readClientDocument(documentId: string) {
     localStorage.removeItem(`${STORAGE_PREFIX}${documentId}`);
     return null;
   }
+}
+
+/**
+ * Enumerates every `docutor:document:*` entry in localStorage (F-1's
+ * client-side half of the document history dashboard). Entries that fail to
+ * parse are skipped silently — same defensive behavior as
+ * `readClientDocument` — rather than surfacing a parse error for one
+ * corrupted key and breaking the whole list. Sorted by `updatedAt`
+ * descending so the most recently touched document is first, matching the
+ * server-side `listDocumentJobSummaries` ordering.
+ */
+export function listClientDocuments(): StoredDocumentJob[] {
+  if (typeof localStorage === "undefined") {
+    return [];
+  }
+
+  const jobs: StoredDocumentJob[] = [];
+
+  for (let index = 0; index < localStorage.length; index += 1) {
+    const key = localStorage.key(index);
+    if (!key || !key.startsWith(STORAGE_PREFIX)) {
+      continue;
+    }
+
+    const raw = localStorage.getItem(key);
+    if (!raw) {
+      continue;
+    }
+
+    try {
+      jobs.push(JSON.parse(raw) as StoredDocumentJob);
+    } catch {
+      // Corrupt entry — skip it rather than failing the whole list.
+    }
+  }
+
+  return jobs.sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
+}
+
+export function deleteClientDocument(documentId: string) {
+  localStorage.removeItem(`${STORAGE_PREFIX}${documentId}`);
+}
+
+/**
+ * Reduces a full client job down to the same summary shape
+ * `listDocumentJobSummaries` returns for server documents, so the F-1
+ * dashboard can render both sources through one row component.
+ */
+export function toDocumentSummary(job: StoredDocumentJob): DocumentJobSummary {
+  return {
+    id: job.id,
+    status: job.status,
+    sourceFileName: job.sourceFileName,
+    sourceFileType: job.sourceFileType,
+    createdAt: job.createdAt,
+    updatedAt: job.updatedAt,
+    ...summarizeSectionCounts(job.reviewDocument?.sections ?? []),
+  };
 }
 
 export function patchClientSection(
@@ -176,6 +237,12 @@ export async function buildClientExport(
   for (const diagramFile of collectDiagramExports(job.reviewDocument)) {
     zip.file(diagramFile.path, diagramFile.content);
   }
+
+  zip.file("agent/sections.jsonl", buildAgentSectionsJsonl(job.reviewDocument));
+  zip.file(
+    "agent/document.json",
+    JSON.stringify(buildAgentDocumentJson(job), null, 2),
+  );
 
   return {
     blob: await zip.generateAsync({ type: "blob" }),

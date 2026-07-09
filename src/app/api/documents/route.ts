@@ -2,9 +2,21 @@ import { NextResponse } from "next/server";
 import { detectSourceFileType } from "@/lib/file-types";
 import { MAX_UPLOAD_BYTES } from "@/lib/limits";
 import { jsonError } from "@/lib/server/http";
-import { createDocumentJob, StorageError } from "@/lib/server/storage";
+import {
+  createDocumentJob,
+  listDocumentJobSummaries,
+  StorageError,
+} from "@/lib/server/storage";
 
 export const runtime = "nodejs";
+
+// F-1 history dashboard: lists server-stored documents as lightweight
+// summaries (see listDocumentJobSummaries for why full review documents are
+// never returned here).
+export async function GET() {
+  const documents = await listDocumentJobSummaries();
+  return NextResponse.json({ documents });
+}
 
 export async function POST(request: Request) {
   const formData = await request.formData();

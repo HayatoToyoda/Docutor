@@ -129,6 +129,11 @@ export default function CompletePage() {
           },
         ]
       : []),
+    {
+      name: "agent/",
+      detail: "RAG-ready sections and document metadata",
+      type: "Folder",
+    },
   ];
 
   return (

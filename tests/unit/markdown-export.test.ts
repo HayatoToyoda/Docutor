@@ -13,6 +13,36 @@ describe("renderReviewDocumentMarkdown", () => {
     expect(markdown).not.toContain("Pending note");
   });
 
+  it("prepends YAML front-matter with title/source/generated/warnings before the heading", () => {
+    const markdown = renderReviewDocumentMarkdown(reviewDocumentFixture);
+    const lines = markdown.split("\n");
+
+    expect(lines[0]).toBe("---");
+    expect(lines[1]).toBe('title: "Fixture Review Document"');
+    expect(lines[2]).toBe('source: "fixture.pdf"');
+    expect(lines[3]).toBe('generated: "2026-07-05T00:00:00.000Z"');
+    expect(lines[4]).toBe("warnings: 1");
+    expect(lines[5]).toBe("---");
+
+    // The heading (relied on by existing consumers/tests) still follows the
+    // front-matter block.
+    expect(markdown).toContain("---\n\n# Fixture Review Document");
+  });
+
+  it("escapes double quotes in the front-matter title and source", () => {
+    const document: ReviewDocument = {
+      ...reviewDocumentFixture,
+      title: 'A "quoted" title',
+      sourceFileName: 'source "file".pdf',
+    };
+
+    const markdown = renderReviewDocumentMarkdown(document);
+    const lines = markdown.split("\n");
+
+    expect(lines[1]).toBe('title: "A \\"quoted\\" title"');
+    expect(lines[2]).toBe('source: "source \\"file\\".pdf"');
+  });
+
   it("exports the edited diagram code even when generatedMarkdown is stale", () => {
     const document: ReviewDocument = {
       ...reviewDocumentFixture,

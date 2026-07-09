@@ -148,6 +148,23 @@ export type StoredDocumentJob = {
   directSourceImage?: string;
 };
 
+// Lightweight summary of a StoredDocumentJob for the F-1 history dashboard —
+// deliberately omits normalizedDocument/reviewDocument (see
+// listDocumentJobSummaries) so listing many jobs stays cheap and never leaks
+// full review content through the list endpoint.
+export type DocumentJobSummary = {
+  id: string;
+  status: DocumentJobStatus;
+  sourceFileName: string;
+  sourceFileType: SourceFileType;
+  createdAt: string;
+  updatedAt: string;
+  sectionCount: number;
+  acceptedCount: number;
+  pendingCount: number;
+  rejectedCount: number;
+};
+
 export type PythonWorkerResult = {
   document: NormalizedDocument;
   stderr?: string;

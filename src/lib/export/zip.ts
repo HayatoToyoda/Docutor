@@ -1,7 +1,12 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import JSZip from "jszip";
-import { buildExportManifest, collectDiagramExports } from "@/lib/document-model";
+import {
+  buildAgentDocumentJson,
+  buildAgentSectionsJsonl,
+  buildExportManifest,
+  collectDiagramExports,
+} from "@/lib/document-model";
 import { renderReviewDocumentMarkdown } from "@/lib/export/markdown";
 import type { StoredDocumentJob } from "@/lib/types";
 
@@ -35,6 +40,12 @@ export async function buildDocumentZip(job: StoredDocumentJob) {
   for (const diagramFile of collectDiagramExports(job.reviewDocument)) {
     zip.file(diagramFile.path, diagramFile.content);
   }
+
+  zip.file("agent/sections.jsonl", buildAgentSectionsJsonl(job.reviewDocument));
+  zip.file(
+    "agent/document.json",
+    JSON.stringify(buildAgentDocumentJson(job), null, 2),
+  );
 
   return zip.generateAsync({ type: "nodebuffer" });
 }
