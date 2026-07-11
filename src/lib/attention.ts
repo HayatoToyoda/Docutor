@@ -17,6 +17,15 @@ export type AttentionMarker = {
 const TODO_PATTERN = /TODO:/;
 const UNCLEAR_PATTERN = /Unclear:/;
 
+// Reviewer instruction audit-trail notes (see appendInstructionNote in
+// document-model.ts) are permanent history, not model output that needs
+// attention. If a reviewer's own instruction happens to mention "TODO:" or
+// "Unclear:" (e.g. "fix the TODO node in this diagram"), scanning it here
+// would keep the section stuck in the Needs attention panel and behind the
+// Accept confirmation forever, even after the regeneration it prompted
+// resolves the original marker.
+const INSTRUCTION_NOTE_PREFIX = "[instruction] ";
+
 // A line can contain both a TODO and an Unclear marker (e.g. a single
 // annotation mixing both); each present marker type counts once for that
 // line, matching the plan's "a line containing both counts once per marker
@@ -52,9 +61,9 @@ export function extractSectionAttentionMarkers(
     section.id,
     section.title,
   );
-  const fromNotes = (section.notes ?? []).flatMap((note) =>
-    extractMarkersFromText(note, section.id, section.title),
-  );
+  const fromNotes = (section.notes ?? [])
+    .filter((note) => !note.startsWith(INSTRUCTION_NOTE_PREFIX))
+    .flatMap((note) => extractMarkersFromText(note, section.id, section.title));
 
   return [...fromMarkdown, ...fromNotes];
 }
