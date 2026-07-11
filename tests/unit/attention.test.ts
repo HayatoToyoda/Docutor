@@ -123,6 +123,39 @@ describe("extractAttentionMarkers", () => {
 
     expect(markers).toEqual([]);
   });
+
+  it("ignores reviewer instruction audit-trail notes even when they mention a marker", () => {
+    const markers = extractSectionAttentionMarkers(
+      section({
+        notes: [
+          "[instruction] The TODO node in this diagram needs a label.",
+          "[instruction] Unclear: please double-check this too.",
+        ],
+      }),
+    );
+
+    expect(markers).toEqual([]);
+  });
+
+  it("still finds markers in non-instruction notes alongside instruction notes", () => {
+    const markers = extractSectionAttentionMarkers(
+      section({
+        notes: [
+          "[instruction] Fix the TODO in the diagram.",
+          "TODO: this one should still be flagged.",
+        ],
+      }),
+    );
+
+    expect(markers).toEqual([
+      {
+        sectionId: "sec_1",
+        sectionTitle: "Section one",
+        marker: "TODO",
+        line: "TODO: this one should still be flagged.",
+      },
+    ]);
+  });
 });
 
 describe("countAttentionMarkers", () => {
