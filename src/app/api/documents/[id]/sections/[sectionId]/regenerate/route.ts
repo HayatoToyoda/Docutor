@@ -10,6 +10,13 @@ export const runtime = "nodejs";
 // of the regeneration prompt.
 const MAX_INSTRUCTION_CHARS = 2000;
 
+// This route's body only ever carries a short instruction string, so cap
+// the raw body well below the direct-regenerate route's limit (which also
+// carries a full sections array) and check it before parsing — matching
+// that route's raw-text-first pattern instead of buffering an unbounded
+// body straight into request.json().
+const MAX_BODY_CHARS = 10_000;
+
 type RouteContext = {
   params: Promise<{ id: string; sectionId: string }>;
 };
@@ -20,12 +27,18 @@ type RegenerateRequestBody = {
 
 // This route previously took no request body at all (a bare POST). F-3
 // adds an *optional* JSON body carrying a reviewer instruction, so a
-// missing body, an empty body, or non-JSON body must all keep working as
-// "no instruction" rather than failing the request.
+// missing body, an empty body, an oversized body, or a non-JSON body must
+// all keep working as "no instruction" rather than failing the request.
 async function readInstruction(request: Request): Promise<string | undefined> {
+  const rawBody = await request.text();
+
+  if (!rawBody || rawBody.length > MAX_BODY_CHARS) {
+    return undefined;
+  }
+
   let body: RegenerateRequestBody;
   try {
-    body = (await request.json()) as RegenerateRequestBody;
+    body = JSON.parse(rawBody) as RegenerateRequestBody;
   } catch {
     return undefined;
   }
