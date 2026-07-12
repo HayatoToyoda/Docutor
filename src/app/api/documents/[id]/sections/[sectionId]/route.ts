@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { applySectionPatch, type SectionPatch } from "@/lib/document-model";
+import { getDocumentRepository } from "@/lib/server/document-repository";
 import { jsonError } from "@/lib/server/http";
-import { readDocumentJob, saveDocumentJob } from "@/lib/server/storage";
 
 export const runtime = "nodejs";
 
@@ -11,7 +11,8 @@ type RouteContext = {
 
 export async function PATCH(request: Request, context: RouteContext) {
   const { id, sectionId } = await context.params;
-  const document = await readDocumentJob(id);
+  const repository = getDocumentRepository();
+  const document = await repository.get(id);
 
   if (!document?.reviewDocument) {
     return jsonError("Review document not found.", 404);
@@ -35,7 +36,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     (section) => section.id === sectionId,
   )!;
 
-  const updated = await saveDocumentJob({
+  const updated = await repository.save({
     ...document,
     reviewDocument,
   });

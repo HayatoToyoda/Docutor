@@ -4,6 +4,30 @@
 前提: `docs/plans/01-refactor-and-fix-plan.md` の P0(最低限 P0-1〜P0-4)完了後に着手すること。
 特に F-2 は P0-1(アセット配信 API)、F-3 は P0-3(実プロバイダ再生成)に依存する。
 
+## 実施状況(2026-07-08 更新)
+
+- 前提の 01 プランは全タスク完了済み。
+- **M1 完了**: F-2(原本ページビューア: Text / Page image タブ+ズームモーダル)、
+  F-8(TODO/Unclear 品質パネル+未解決 Accept の確認+`src/lib/attention.ts`)、
+  F-3(指示付き再生成: ポップオーバー入力 → 両再生成 API → プロンプトの
+  Reviewer instruction ブロック、`[instruction]` notes 監査証跡)。
+- **M2 完了**: F-1(`/documents` 履歴ダッシュボード+一覧/削除 API+ヘッダー導線)、
+  F-6(`agent/sections.jsonl` + `agent/document.json` + document.md の YAML front-matter)。
+- **M3 完了**: F-4(複数ファイル一括変換キュー。フォルダドロップは未実装 —
+  プレーンな複数選択/ドロップのみ)、F-7(日本語 UI: `src/lib/i18n/` の型安全辞書
+  159 キー+ヘッダーの EN/日本語トグル+localStorage 永続化)。
+- **M4 一部完了**: F-5(Anthropic プロバイダ: Messages API + 強制 tool use、
+  セルフホストのトグルに追加)、F-10(ページ分割変換: `chunked-convert.ts`、
+  `DOCUTOR_PAGES_PER_CHUNK` 既定 6、`statusDetail` による進捗表示)。
+- **F-9 ステップ 1 完了**: `DocumentRepository` インターフェース+
+  `FilesystemDocumentRepository`(`DOCUTOR_STORAGE_DRIVER` で選択、既定
+  filesystem)。全 API ルートがリポジトリ経由になり、ページ画像・ZIP アセットの
+  封じ込めチェックも `readAsset` に集約。
+- **残り(要インフラ)**: F-9 ステップ 2 のみ — Vercel Blob/KV 実装
+  (`DOCUTOR_STORAGE_DRIVER=vercel-blob`)と共有リンク。デプロイ環境を
+  用意した上で `document-repository.ts` に実装を追加すること。API ルートの
+  変更は不要な構造になっている。
+
 ## 背景 — 現状の機能はプロダクトの価値に対して限定的
 
 Docutor が提供したい価値は「企業に眠る非構造文書を、人と AI エージェントが使える

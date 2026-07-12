@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { useT } from "@/lib/i18n/locale-context";
 
 const DEFAULT_DRAWIO_EMBED_URL = "https://embed.diagrams.net";
 
@@ -55,9 +56,15 @@ export function DrawioEditor({
   onChange: (xml: string) => void;
   onSave: (xml: string) => void;
 }) {
+  const { t } = useT();
   const iframeRef = useState<HTMLIFrameElement | null>(null);
   const [iframeElement, setIframeElement] = iframeRef;
-  const [editorStatus, setEditorStatus] = useState("Loading draw.io editor...");
+  // A dictionary key for our own status messages (so it stays correct
+  // across a locale switch) or a plain string for a draw.io-reported error
+  // (an external message, left untranslated like other API/embed errors).
+  const [editorStatus, setEditorStatus] = useState<
+    { kind: "key"; key: "drawio.ready" | "drawio.loaded" | "drawio.autosaveCaptured" | "drawio.saved" } | { kind: "error"; text: string } | null
+  >(null);
   // Self-hosted embed hosts keep the data in-house, so they skip the
   // external-send consent gate entirely. The public embed.diagrams.net host
   // only needs consent once per browser session.
@@ -103,31 +110,31 @@ export function DrawioEditor({
       }
 
       if (message.event === "init") {
-        setEditorStatus("draw.io editor ready.");
+        setEditorStatus({ kind: "key", key: "drawio.ready" });
         postLoad();
         return;
       }
 
       if (message.event === "load") {
-        setEditorStatus("draw.io diagram loaded.");
+        setEditorStatus({ kind: "key", key: "drawio.loaded" });
         return;
       }
 
       if (message.event === "autosave" && message.xml) {
         onChange(message.xml);
-        setEditorStatus("draw.io changes captured.");
+        setEditorStatus({ kind: "key", key: "drawio.autosaveCaptured" });
         return;
       }
 
       if (message.event === "save" && message.xml) {
         onChange(message.xml);
         onSave(message.xml);
-        setEditorStatus("draw.io XML saved.");
+        setEditorStatus({ kind: "key", key: "drawio.saved" });
         return;
       }
 
       if (message.error) {
-        setEditorStatus(message.error);
+        setEditorStatus({ kind: "error", text: message.error });
       }
     }
 
@@ -136,21 +143,26 @@ export function DrawioEditor({
   }, [consented, iframeElement, onChange, onSave, title, xml]);
 
   if (!consented) {
+    // The consent sentence has a single {host} placeholder; splitting the
+    // translated string on the (already-interpolated) hostname lets us wrap
+    // just that segment in a bold span without hand-parsing markup out of
+    // the dictionary value.
+    const hostName = new URL(DRAWIO_EMBED_URL).hostname;
+    const consentText = t("drawio.consentText", { host: hostName });
+    const [consentBefore, consentAfter] = consentText.split(hostName);
+
     return (
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <span className="text-sm font-medium text-[#4a4e58]">
-            draw.io editor
+            {t("drawio.editorLabel")}
           </span>
         </div>
         <Card className="gap-3 rounded-md border border-[#dcdee4] bg-[#fafafb] p-5 text-sm text-[#4a4e58]">
           <p>
-            Opening the editor sends this diagram&apos;s XML to{" "}
-            <span className="font-medium">
-              {new URL(DRAWIO_EMBED_URL).hostname}
-            </span>
-            , the configured draw.io host, so it can render and let you edit
-            the diagram there. Nothing else on this page is sent.
+            {consentBefore}
+            <span className="font-medium">{hostName}</span>
+            {consentAfter}
           </p>
           <Button
             onClick={() => {
@@ -159,20 +171,26 @@ export function DrawioEditor({
             }}
             type="button"
           >
-            Open draw.io editor
+            {t("drawio.openEditor")}
           </Button>
         </Card>
       </div>
     );
   }
 
+  const statusText = editorStatus
+    ? editorStatus.kind === "key"
+      ? t(editorStatus.key)
+      : editorStatus.text
+    : t("drawio.loading");
+
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
         <span className="text-sm font-medium text-[#4a4e58]">
-          draw.io editor
+          {t("drawio.editorLabel")}
         </span>
-        <span className="text-xs text-[#8b8f9a]">{editorStatus}</span>
+        <span className="text-xs text-[#8b8f9a]">{statusText}</span>
       </div>
       <iframe
         className="h-[420px] w-full rounded-md border border-[#dcdee4]"
@@ -181,7 +199,7 @@ export function DrawioEditor({
         title={title}
       />
       <Button onClick={() => onSave(xml)} type="button" variant="outline">
-        Save draw.io XML
+        {t("drawio.saveXml")}
       </Button>
     </div>
   );

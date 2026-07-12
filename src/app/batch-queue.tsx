@@ -1,0 +1,322 @@
+"use client";
+
+import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
+import { providerLabelKey, type Provider } from "@/app/use-document-upload";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { formatBytes } from "@/lib/format-bytes";
+import type { DictionaryKey } from "@/lib/i18n/dictionaries";
+import { useT } from "@/lib/i18n/locale-context";
+
+type BatchRowStatus = "queued" | "converting" | "ready" | "failed";
+
+type BatchRow = {
+  id: string;
+  file: File;
+  status: BatchRowStatus;
+  documentId?: string;
+  // "oversized" re-derives its message from the current locale at render
+  // time (see rowErrorText below); a plain string here is a one-off runtime
+  // failure message (possibly a server error, left untranslated) captured
+  // at the moment it happened.
+  error?: { kind: "oversized" } | { kind: "message"; text: string };
+};
+
+type BatchQueueProps = {
+  files: File[];
+  provider: Provider;
+  onProviderChange: (provider: Provider) => void;
+  maxUploadBytes: number;
+  selfHosted: boolean;
+  convertSingleFile: (
+    file: File,
+    provider: Provider,
+  ) => Promise<{ id: string }>;
+  onReset: () => void;
+};
+
+function buildInitialRows(files: File[], maxUploadBytes: number): BatchRow[] {
+  return files.map((file) => {
+    const oversized = file.size > maxUploadBytes;
+    return {
+      id: crypto.randomUUID(),
+      file,
+      status: oversized ? "failed" : "queued",
+      error: oversized ? { kind: "oversized" } : undefined,
+    };
+  });
+}
+
+function rowDotClass(status: BatchRowStatus) {
+  if (status === "ready") return "bg-success";
+  if (status === "failed") return "bg-destructive";
+  if (status === "converting") return "bg-warning";
+  return "bg-[#9aa0ab]";
+}
+
+function rowStatusLabelKey(status: BatchRowStatus): DictionaryKey {
+  if (status === "ready") return "batch.statusReady";
+  if (status === "failed") return "batch.statusFailed";
+  if (status === "converting") return "batch.statusConverting";
+  return "batch.statusQueued";
+}
+
+/**
+ * Renders when 2+ files are selected on the upload page (src/app/page.tsx).
+ * Owns its own per-row conversion state and runs files through
+ * `convertSingleFile` (from useDocumentUpload) sequentially, one at a time,
+ * rather than navigating away on the first success like the single-file
+ * flow does. The parent remounts this component (via a changing `key`)
+ * whenever a fresh batch of files is chosen, which is what resets the row
+ * state below.
+ */
+export function BatchQueue({
+  files,
+  provider,
+  onProviderChange,
+  maxUploadBytes,
+  selfHosted,
+  convertSingleFile,
+  onReset,
+}: BatchQueueProps) {
+  const { t } = useT();
+  // The Anthropic provider only runs through the self-hosted server
+  // pipeline (see F-5) — the hosted /api/convert-direct flow stays
+  // OpenAI-only, so the toggle only offers it in self-hosted mode.
+  const providerOptions: Provider[] = selfHosted
+    ? ["openai", "anthropic", "mock"]
+    : ["openai", "mock"];
+  const [rows, setRows] = useState<BatchRow[]>(() =>
+    buildInitialRows(files, maxUploadBytes),
+  );
+  const [isRunning, setIsRunning] = useState(false);
+  const [hasFinished, setHasFinished] = useState(false);
+  const mountedRef = useRef(true);
+
+  // Setting the ref to true here (not just false in the cleanup) matters:
+  // React 18 Strict Mode's dev-only mount->unmount->remount simulation runs
+  // this effect's cleanup once right after the initial mount, which would
+  // otherwise leave `mountedRef.current` permanently false and silently
+  // drop every row update for the rest of the component's real lifetime.
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  function updateRow(id: string, patch: Partial<BatchRow>) {
+    if (!mountedRef.current) return;
+    setRows((current) =>
+      current.map((row) => (row.id === id ? { ...row, ...patch } : row)),
+    );
+  }
+
+  async function handleRunBatch() {
+    const queuedRows = rows.filter((row) => row.status === "queued");
+    if (queuedRows.length === 0) return;
+
+    setIsRunning(true);
+
+    // Sequential (concurrency 1) by design: a failure on one file must not
+    // block the rest, and the F-4 acceptance criteria only require that
+    // conversion continues after a failure, not that it's parallelized.
+    for (const row of queuedRows) {
+      updateRow(row.id, { status: "converting" });
+      try {
+        const { id } = await convertSingleFile(row.file, provider);
+        updateRow(row.id, { status: "ready", documentId: id });
+      } catch (error) {
+        updateRow(row.id, {
+          status: "failed",
+          error: {
+            kind: "message",
+            text:
+              error instanceof Error
+                ? error.message
+                : t("upload.statusFailed"),
+          },
+        });
+      }
+    }
+
+    if (mountedRef.current) {
+      setIsRunning(false);
+      setHasFinished(true);
+    }
+  }
+
+  const total = rows.length;
+  const readyCount = rows.filter((row) => row.status === "ready").length;
+  const failedCount = rows.filter((row) => row.status === "failed").length;
+  const queuedCount = rows.filter((row) => row.status === "queued").length;
+
+  const summary = t("batch.summary", {
+    ready: readyCount,
+    total,
+    failedSuffix:
+      failedCount > 0
+        ? t("batch.summaryFailedSuffix", { failed: failedCount })
+        : "",
+  });
+
+  function rowErrorText(row: BatchRow): string | null {
+    if (!row.error) return null;
+    if (row.error.kind === "oversized") {
+      return t(
+        selfHosted ? "common.fileTooLargeSelfHosted" : "common.fileTooLargeHosted",
+      );
+    }
+    return row.error.text;
+  }
+
+  return (
+    <Card className="mt-5 gap-0 rounded-[10px] py-0">
+      <div className="flex items-center justify-between gap-3 p-4">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold">
+            {t(total === 1 ? "batch.filesSelectedOne" : "batch.filesSelectedOther", {
+              count: total,
+            })}
+          </p>
+          <p className="mt-0.5 text-xs text-[#8b8f9a]">{summary}</p>
+        </div>
+        <Button
+          aria-label={t("batch.clearAria")}
+          className="text-[#8b8f9a] hover:text-destructive"
+          disabled={isRunning}
+          onClick={onReset}
+          size="icon-sm"
+          type="button"
+          variant="ghost"
+        >
+          ×
+        </Button>
+      </div>
+
+      <Separator />
+      <div className="flex flex-wrap items-center gap-3 px-4 py-3">
+        <span className="text-xs font-medium text-[#6b6f7b]">
+          {t("common.conversionMode")}
+        </span>
+        <ToggleGroup
+          className="rounded-md bg-secondary p-0.5"
+          onValueChange={(values) => {
+            const next = values[0];
+            if (next) onProviderChange(next as Provider);
+          }}
+          spacing={0}
+          value={[provider]}
+        >
+          {providerOptions.map((option) => (
+            <ToggleGroupItem
+              className="rounded-[5px] px-3 py-1 text-xs font-medium hover:bg-transparent data-pressed:bg-white data-pressed:text-foreground data-pressed:shadow-sm"
+              key={option}
+              value={option}
+            >
+              {t(providerLabelKey(option))}
+            </ToggleGroupItem>
+          ))}
+        </ToggleGroup>
+      </div>
+
+      <Separator />
+      <div className="max-h-[360px] overflow-y-auto">
+        {rows.map((row, index) => {
+          const errorText = rowErrorText(row);
+          return (
+            <div key={row.id}>
+              <div className="flex flex-wrap items-center gap-3 px-4 py-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent text-[10px] font-bold text-accent-foreground">
+                  {row.file.name.split(".").pop()?.toUpperCase() ?? "DOC"}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">
+                    {row.file.name}
+                  </p>
+                  <p className="mt-0.5 text-xs text-[#8b8f9a]">
+                    {formatBytes(row.file.size)}
+                  </p>
+                  {row.status === "failed" && errorText ? (
+                    <p
+                      className="mt-0.5 truncate text-xs text-destructive"
+                      title={errorText}
+                    >
+                      {errorText}
+                    </p>
+                  ) : null}
+                </div>
+                <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-secondary-foreground">
+                  <span
+                    className={`h-1.5 w-1.5 rounded-full ${rowDotClass(
+                      row.status,
+                    )}`}
+                  />
+                  {t(rowStatusLabelKey(row.status))}
+                </span>
+                {row.status === "ready" && row.documentId ? (
+                  <Link
+                    className={buttonVariants({
+                      className: "shrink-0",
+                      size: "sm",
+                      variant: "outline",
+                    })}
+                    href={`/review/${row.documentId}`}
+                  >
+                    {t("common.openReview")}
+                  </Link>
+                ) : null}
+              </div>
+              {index < rows.length - 1 ? <Separator /> : null}
+            </div>
+          );
+        })}
+      </div>
+
+      <Separator />
+      <div className="p-4">
+        {hasFinished ? (
+          <>
+            <Alert className="border-success/30 bg-success/5">
+              <AlertDescription className="text-success">
+                {t("batch.finishedAlert", { ready: readyCount, total })}{" "}
+                <Link className="underline" href="/documents">
+                  {t("batch.viewAllLink")}
+                </Link>
+              </AlertDescription>
+            </Alert>
+            <Button
+              className="mt-3 w-full"
+              onClick={onReset}
+              type="button"
+              variant="outline"
+            >
+              {t("batch.convertMore")}
+            </Button>
+          </>
+        ) : (
+          <Button
+            className="w-full py-3 text-sm font-semibold"
+            disabled={isRunning || queuedCount === 0}
+            onClick={handleRunBatch}
+            size="lg"
+            type="button"
+          >
+            {isRunning
+              ? t("batch.converting")
+              : t(
+                  queuedCount === 1
+                    ? "batch.convertCountOne"
+                    : "batch.convertCountOther",
+                  { count: queuedCount },
+                )}
+          </Button>
+        )}
+      </div>
+    </Card>
+  );
+}

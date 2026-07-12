@@ -1,9 +1,12 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { AppHeader } from "@/app/components/app-header";
 import { Button } from "@/components/ui/button";
+import { extractAttentionMarkers } from "@/lib/attention";
+import { useT } from "@/lib/i18n/locale-context";
+import { QualityPanel } from "./quality-panel";
 import { SectionDetail } from "./section-detail";
 import { SectionList } from "./section-list";
 import { useReviewDocument } from "./use-review-document";
@@ -11,6 +14,7 @@ import { useReviewDocument } from "./use-review-document";
 export default function ReviewPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
+  const { t } = useT();
   const [viewMode, setViewMode] = useState<"preview" | "edit">("preview");
 
   const {
@@ -31,34 +35,49 @@ export default function ReviewPage() {
     progress,
   } = useReviewDocument(params.id);
 
+  const attentionMarkers = useMemo(
+    () => (reviewDocument ? extractAttentionMarkers(reviewDocument) : []),
+    [reviewDocument],
+  );
+
+  function selectSection(sectionId: string) {
+    setSelectedSectionId(sectionId);
+    setViewMode("preview");
+  }
+
   return (
     <main className="flex min-h-screen flex-col bg-background text-foreground">
       <AppHeader
         activeStep="review"
-        status={message ?? `${acceptedCount} sections accepted`}
+        status={message ?? t("review.acceptedSummary", { count: acceptedCount })}
       />
 
       <div className="grid min-h-0 flex-1 lg:h-[calc(100vh-56px)] lg:grid-cols-[292px_minmax(0,1fr)]">
         <SectionList
           acceptedCount={acceptedCount}
           documentTitle={
-            reviewDocument?.sourceFileName ?? job?.sourceFileName ?? "Document"
+            reviewDocument?.sourceFileName ??
+            job?.sourceFileName ??
+            t("common.documentFallbackTitle")
           }
-          onSelectSection={(sectionId) => {
-            setSelectedSectionId(sectionId);
-            setViewMode("preview");
-          }}
+          onSelectSection={selectSection}
           progress={progress}
           sections={sections}
           selectedSectionId={selectedSection?.id ?? null}
-        />
+        >
+          <QualityPanel
+            markers={attentionMarkers}
+            onSelectSection={selectSection}
+          />
+        </SectionList>
 
         <section className="flex min-h-0 min-w-0 flex-col">
           <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-7 sm:py-6">
             <SectionDetail
               isSaving={isSaving}
-              onRegenerate={() =>
-                selectedSection && regenerateSection(selectedSection.id)
+              onRegenerate={(instruction) =>
+                selectedSection &&
+                regenerateSection(selectedSection.id, instruction)
               }
               onSave={(patch) =>
                 selectedSection && saveSection(selectedSection.id, patch)
@@ -78,7 +97,10 @@ export default function ReviewPage() {
           <footer className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-border bg-card px-4 py-3 sm:px-7">
             <div className="flex items-center gap-3 text-xs text-[#6b6f7b]">
               <span>
-                {reviewedCount} of {sections.length} sections reviewed
+                {t("review.reviewedCount", {
+                  reviewed: reviewedCount,
+                  total: sections.length,
+                })}
               </span>
               <Button
                 disabled={acceptedCount === 0}
@@ -86,7 +108,7 @@ export default function ReviewPage() {
                 type="button"
                 variant="link"
               >
-                Download Markdown
+                {t("review.downloadMarkdown")}
               </Button>
               <Button
                 disabled={acceptedCount === 0}
@@ -94,7 +116,7 @@ export default function ReviewPage() {
                 type="button"
                 variant="link"
               >
-                Download ZIP
+                {t("review.downloadZip")}
               </Button>
             </div>
             <Button
@@ -103,7 +125,7 @@ export default function ReviewPage() {
               size="lg"
               type="button"
             >
-              Complete review →
+              {t("review.completeCta")}
             </Button>
           </footer>
         </section>

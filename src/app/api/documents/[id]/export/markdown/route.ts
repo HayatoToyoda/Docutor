@@ -1,6 +1,6 @@
 import { renderReviewDocumentMarkdown } from "@/lib/export/markdown";
+import { getDocumentRepository } from "@/lib/server/document-repository";
 import { jsonError } from "@/lib/server/http";
-import { readDocumentJob } from "@/lib/server/storage";
 
 export const runtime = "nodejs";
 
@@ -10,7 +10,7 @@ type RouteContext = {
 
 export async function POST(_request: Request, context: RouteContext) {
   const { id } = await context.params;
-  const document = await readDocumentJob(id);
+  const document = await getDocumentRepository().get(id);
 
   if (!document?.reviewDocument) {
     return jsonError("Review document not found.", 404);

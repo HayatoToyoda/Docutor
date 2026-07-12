@@ -1,8 +1,9 @@
 "use client";
 
 import { Progress } from "@/components/ui/progress";
+import { useT } from "@/lib/i18n/locale-context";
 import type { ReviewSection } from "@/lib/types";
-import { statusDotClass, statusLabel, typeLabel } from "./section-status";
+import { statusDotClass, statusLabelKey, typeLabelKey } from "./section-status";
 
 export function SectionList({
   documentTitle,
@@ -11,6 +12,7 @@ export function SectionList({
   acceptedCount,
   progress,
   onSelectSection,
+  children,
 }: {
   documentTitle: string;
   sections: ReviewSection[];
@@ -18,13 +20,18 @@ export function SectionList({
   acceptedCount: number;
   progress: number;
   onSelectSection: (sectionId: string) => void;
+  children?: React.ReactNode;
 }) {
+  const { t } = useT();
   return (
     <aside className="flex min-h-0 flex-col border-r border-border bg-card">
       <div className="border-b border-[#f0f1f4] p-4">
         <p className="truncate text-sm font-semibold">{documentTitle}</p>
         <p className="mt-1 text-xs text-[#8b8f9a]">
-          {sections.length} sections · {acceptedCount} accepted
+          {t("review.sectionsSummary", {
+            count: sections.length,
+            accepted: acceptedCount,
+          })}
         </p>
         <Progress className="mt-3" value={progress} />
       </div>
@@ -43,7 +50,7 @@ export function SectionList({
           >
             <span className="flex items-center justify-between gap-2">
               <span className="text-[10px] font-bold tracking-[0.06em] text-[#8b8f9a]">
-                {typeLabel(section)}
+                {t(typeLabelKey(section))}
               </span>
               <span
                 className={`h-2 w-2 shrink-0 rounded-full ${statusDotClass(
@@ -55,11 +62,16 @@ export function SectionList({
               {section.title}
             </span>
             <span className="mt-0.5 block text-[11px] text-[#9aa0ab]">
-              Page {section.sourcePage} · {statusLabel(section.reviewStatus)}
+              {t("review.sectionPageStatus", {
+                page: section.sourcePage,
+                status: t(statusLabelKey(section.reviewStatus)),
+              })}
             </span>
           </button>
         ))}
       </div>
+
+      {children}
     </aside>
   );
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -8,16 +9,139 @@ import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { extractSectionAttentionMarkers } from "@/lib/attention";
 import type { SectionPatch } from "@/lib/document-model";
+import { useT } from "@/lib/i18n/locale-context";
 import type { ReviewSection } from "@/lib/types";
 import { DrawioEditor } from "./drawio-editor";
 import { MermaidPreview } from "./mermaid-preview";
 import {
   isDiagramSection,
-  statusLabel,
+  statusLabelKey,
   statusTone,
-  typeLabel,
+  typeLabelKey,
 } from "./section-status";
+
+type SourceTab = "text" | "image";
+
+// Zoom overlay for the page image: click anywhere on the backdrop or press
+// Escape to close.
+function ImageZoomModal({
+  src,
+  alt,
+  onClose,
+}: {
+  src: string;
+  alt: string;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex cursor-zoom-out items-center justify-center bg-black/80 p-6"
+      onClick={onClose}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        alt={alt}
+        className="max-h-[90vh] max-w-[90vw] object-contain"
+        src={src}
+      />
+    </div>
+  );
+}
+
+// Tabbed ORIGINAL SOURCE pane shared by diagram and non-diagram sections
+// (F-2): lets a reviewer compare either the extracted text or the source
+// page image against the generated output, with the image zoomable. Keyed
+// by section id from the caller so tab/zoom state resets whenever the
+// selected section changes.
+function OriginalSourcePane({
+  section,
+  sourceImageUrl,
+}: {
+  section: ReviewSection;
+  sourceImageUrl: string | null;
+}) {
+  const { t } = useT();
+  const hasImage = Boolean(sourceImageUrl);
+  const hasText = Boolean(section.originalText);
+  const preferImage = !hasText || isDiagramSection(section);
+  const [tab, setTab] = useState<SourceTab>(
+    hasImage && preferImage ? "image" : "text",
+  );
+  const [zoomed, setZoomed] = useState(false);
+  const imageAlt = t("review.originalSourceAlt", {
+    page: section.sourcePage,
+  });
+
+  return (
+    <Card className="gap-0 rounded-[10px] py-0">
+      <div className="flex items-center justify-between px-3.5 py-2.5">
+        <span className="text-xs font-semibold tracking-[0.04em] text-[#6b6f7b]">
+          {t("review.originalSourceHeading", { page: section.sourcePage })}
+        </span>
+        <ToggleGroup
+          className="rounded-md bg-secondary p-0.5"
+          onValueChange={(values) => {
+            const next = values[0];
+            if (next) setTab(next as SourceTab);
+          }}
+          spacing={0}
+          value={[tab]}
+        >
+          <ToggleGroupItem
+            className="rounded-[5px] px-3 py-1 text-xs font-medium hover:bg-transparent data-pressed:bg-white data-pressed:text-foreground data-pressed:shadow-sm"
+            value="text"
+          >
+            {t("common.text")}
+          </ToggleGroupItem>
+          <ToggleGroupItem
+            className="rounded-[5px] px-3 py-1 text-xs font-medium hover:bg-transparent data-pressed:bg-white data-pressed:text-foreground data-pressed:shadow-sm disabled:pointer-events-none disabled:opacity-40"
+            disabled={!hasImage}
+            value="image"
+          >
+            {t("review.pageImage")}
+          </ToggleGroupItem>
+        </ToggleGroup>
+      </div>
+      <Separator />
+      {tab === "image" && sourceImageUrl ? (
+        <button
+          className="flex min-h-[330px] w-full cursor-zoom-in items-center justify-center overflow-auto bg-[#fafafb] p-3"
+          onClick={() => setZoomed(true)}
+          type="button"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            alt={imageAlt}
+            className="max-h-[520px] w-auto max-w-full rounded border border-[#e5e6ea] object-contain"
+            src={sourceImageUrl}
+          />
+        </button>
+      ) : (
+        <div className="min-h-[330px] whitespace-pre-wrap bg-[#fafafb] p-4 text-[13px] leading-7 text-[#4a4e58]">
+          {section.originalText || t("review.originalTextMissing")}
+        </div>
+      )}
+
+      {zoomed && sourceImageUrl ? (
+        <ImageZoomModal
+          alt={imageAlt}
+          onClose={() => setZoomed(false)}
+          src={sourceImageUrl}
+        />
+      ) : null}
+    </Card>
+  );
+}
 
 export function SectionDetail({
   warnings,
@@ -36,10 +160,64 @@ export function SectionDetail({
   viewMode: "preview" | "edit";
   onViewModeChange: (mode: "preview" | "edit") => void;
   isSaving: boolean;
-  onRegenerate: () => void;
+  onRegenerate: (instruction?: string) => void;
   onSave: (patch: SectionPatch) => void;
   onUpdateLocal: (patch: SectionPatch) => void;
 }) {
+  const { t } = useT();
+  // Accept-with-unresolved-markers confirmation (F-8): the first click on a
+  // section that still has TODO:/Unclear: markers arms a warning-styled
+  // confirmation instead of blocking with window.confirm; a second click
+  // within the window accepts. Resets when the selected section changes or
+  // after 3s of inactivity.
+  const [acceptConfirmArmed, setAcceptConfirmArmed] = useState(false);
+  // Instructed regeneration popover (F-3): a compact card anchored under the
+  // Regenerate button holding an optional free-text instruction.
+  const [regenerateOpen, setRegenerateOpen] = useState(false);
+  const [instructionDraft, setInstructionDraft] = useState("");
+  const selectedSectionId = selectedSection?.id ?? null;
+  const unresolvedMarkerCount = selectedSection
+    ? extractSectionAttentionMarkers(selectedSection).length
+    : 0;
+
+  // Reset the armed confirmation and the regenerate popover when the
+  // selected section changes. This adjusts state during render (React's
+  // recommended pattern for resetting state on a prop change) rather than
+  // in an effect, avoiding an extra render pass.
+  const [trackedSectionId, setTrackedSectionId] = useState(selectedSectionId);
+  if (trackedSectionId !== selectedSectionId) {
+    setTrackedSectionId(selectedSectionId);
+    if (acceptConfirmArmed) setAcceptConfirmArmed(false);
+    if (regenerateOpen) setRegenerateOpen(false);
+    if (instructionDraft) setInstructionDraft("");
+  }
+
+  function closeRegeneratePopover() {
+    setRegenerateOpen(false);
+    setInstructionDraft("");
+  }
+
+  function submitRegenerate() {
+    const trimmed = instructionDraft.trim();
+    onRegenerate(trimmed || undefined);
+    closeRegeneratePopover();
+  }
+
+  useEffect(() => {
+    if (!acceptConfirmArmed) return;
+    const timer = setTimeout(() => setAcceptConfirmArmed(false), 3000);
+    return () => clearTimeout(timer);
+  }, [acceptConfirmArmed]);
+
+  function handleAcceptClick() {
+    if (unresolvedMarkerCount > 0 && !acceptConfirmArmed) {
+      setAcceptConfirmArmed(true);
+      return;
+    }
+    setAcceptConfirmArmed(false);
+    onSave({ reviewStatus: "accepted" });
+  }
+
   return (
     <div className="mx-auto max-w-[1120px]">
       {warnings.length ? (
@@ -60,44 +238,85 @@ export function SectionDetail({
             <div>
               <div className="flex items-center gap-2">
                 <Badge className="bg-accent text-accent-foreground">
-                  {typeLabel(selectedSection)}
+                  {t(typeLabelKey(selectedSection))}
                 </Badge>
                 <Badge className={statusTone(selectedSection.reviewStatus)}>
-                  {statusLabel(selectedSection.reviewStatus)}
+                  {t(statusLabelKey(selectedSection.reviewStatus))}
                 </Badge>
               </div>
               <h1 className="mt-2 text-xl font-semibold">
                 {selectedSection.title}
               </h1>
               <p className="mt-1 text-xs text-[#8b8f9a]">
-                Source: page {selectedSection.sourcePage}
+                {t("review.sourcePage", { page: selectedSection.sourcePage })}
               </p>
             </div>
 
             <div className="flex flex-wrap gap-2">
-              <Button
-                disabled={isSaving}
-                onClick={onRegenerate}
-                type="button"
-                variant="outline"
-              >
-                {isSaving ? "↻ Regenerating…" : "↻ Regenerate"}
-              </Button>
+              <div className="relative">
+                <Button
+                  aria-expanded={regenerateOpen}
+                  disabled={isSaving}
+                  onClick={() => setRegenerateOpen((current) => !current)}
+                  type="button"
+                  variant="outline"
+                >
+                  {isSaving ? t("review.regenerating") : t("review.regenerate")}
+                </Button>
+
+                {regenerateOpen ? (
+                  <Card className="absolute left-0 top-full z-20 mt-2 w-80 gap-2 rounded-[10px] p-3 shadow-lg">
+                    <Textarea
+                      autoFocus
+                      className="h-20 resize-none text-xs"
+                      onChange={(event) =>
+                        setInstructionDraft(event.target.value)
+                      }
+                      placeholder={t("review.instructionPlaceholder")}
+                      value={instructionDraft}
+                    />
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        onClick={closeRegeneratePopover}
+                        size="sm"
+                        type="button"
+                        variant="ghost"
+                      >
+                        {t("common.cancel")}
+                      </Button>
+                      <Button
+                        disabled={isSaving}
+                        onClick={submitRegenerate}
+                        size="sm"
+                        type="button"
+                      >
+                        {t("review.regenerateSubmit")}
+                      </Button>
+                    </div>
+                  </Card>
+                ) : null}
+              </div>
               <Button
                 disabled={isSaving}
                 onClick={() => onSave({ reviewStatus: "rejected" })}
                 type="button"
                 variant="destructive"
               >
-                Reject
+                {t("common.reject")}
               </Button>
               <Button
-                className="bg-success text-success-foreground hover:bg-success/90"
+                className={
+                  acceptConfirmArmed
+                    ? "bg-warning text-warning-foreground hover:bg-warning/90"
+                    : "bg-success text-success-foreground hover:bg-success/90"
+                }
                 disabled={isSaving}
-                onClick={() => onSave({ reviewStatus: "accepted" })}
+                onClick={handleAcceptClick}
                 type="button"
               >
-                ✓ Accept
+                {acceptConfirmArmed
+                  ? t("review.acceptConfirm", { count: unresolvedMarkerCount })
+                  : t("review.accept")}
               </Button>
             </div>
           </div>
@@ -105,31 +324,15 @@ export function SectionDetail({
           {isDiagramSection(selectedSection) ? (
             <div className="mt-4 space-y-4">
               <div className="grid gap-4 xl:grid-cols-2">
-                <Card className="gap-0 rounded-[10px] py-0">
-                  <div className="px-3.5 py-2.5 text-xs font-semibold tracking-[0.04em] text-[#6b6f7b]">
-                    ORIGINAL SOURCE — PAGE {selectedSection.sourcePage}
-                  </div>
-                  <Separator />
-                  {sourceImageUrl ? (
-                    <div className="flex min-h-[330px] items-center justify-center overflow-auto bg-[#fafafb] p-3">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        alt={`Original source, page ${selectedSection.sourcePage}`}
-                        className="max-h-[520px] w-auto max-w-full rounded border border-[#e5e6ea] object-contain"
-                        src={sourceImageUrl}
-                      />
-                    </div>
-                  ) : (
-                    <div className="min-h-[330px] whitespace-pre-wrap bg-[#fafafb] p-4 text-[13px] leading-7 text-[#4a4e58]">
-                      {selectedSection.originalText ||
-                        "The original visual was captured from the source document. Compare its structure with the generated diagram."}
-                    </div>
-                  )}
-                </Card>
+                <OriginalSourcePane
+                  key={selectedSection.id}
+                  section={selectedSection}
+                  sourceImageUrl={sourceImageUrl}
+                />
                 <Card className="gap-0 rounded-[10px] py-0">
                   <div className="flex items-center justify-between px-3.5 py-2.5">
                     <span className="text-xs font-semibold tracking-[0.04em] text-[#6b6f7b]">
-                      GENERATED PREVIEW
+                      {t("review.generatedPreview")}
                     </span>
                     <span className="text-[11px] text-[#9aa0ab]">
                       {selectedSection.format}
@@ -140,7 +343,7 @@ export function SectionDetail({
                     <MermaidPreview code={selectedSection.generatedCode} />
                   ) : (
                     <div className="p-4 text-sm text-[#6b6f7b]">
-                      Open the draw.io editor below to inspect this diagram.
+                      {t("review.openDrawioHint")}
                     </div>
                   )}
                 </Card>
@@ -148,7 +351,7 @@ export function SectionDetail({
 
               <Card className="gap-0 rounded-[10px] py-0">
                 <div className="px-3.5 py-2.5 text-xs font-semibold tracking-[0.04em] text-[#6b6f7b]">
-                  DIAGRAM SOURCE
+                  {t("review.diagramSource")}
                 </div>
                 <Separator />
                 {selectedSection.format === "mermaid" ? (
@@ -179,34 +382,16 @@ export function SectionDetail({
             </div>
           ) : (
             <div className="mt-4 grid items-start gap-4 xl:grid-cols-[5fr_7fr]">
-              <Card className="gap-0 rounded-[10px] py-0">
-                <div className="px-3.5 py-2.5 text-xs font-semibold tracking-[0.04em] text-[#6b6f7b]">
-                  ORIGINAL SOURCE — PAGE {selectedSection.sourcePage}
-                </div>
-                <Separator />
-                <div className="min-h-[320px] whitespace-pre-wrap bg-[#fafafb] p-4 text-[13px] leading-7 text-[#4a4e58]">
-                  {selectedSection.originalText ||
-                    "Original source text was not included for this section."}
-                </div>
-                {sourceImageUrl ? (
-                  <>
-                    <Separator />
-                    <div className="flex justify-center overflow-auto bg-[#fafafb] p-3">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        alt={`Original source, page ${selectedSection.sourcePage}`}
-                        className="max-h-[360px] w-auto max-w-full rounded border border-[#e5e6ea] object-contain"
-                        src={sourceImageUrl}
-                      />
-                    </div>
-                  </>
-                ) : null}
-              </Card>
+              <OriginalSourcePane
+                key={selectedSection.id}
+                section={selectedSection}
+                sourceImageUrl={sourceImageUrl}
+              />
 
               <Card className="gap-0 rounded-[10px] py-0">
                 <div className="flex items-center justify-between px-3.5 py-2">
                   <span className="text-xs font-semibold tracking-[0.04em] text-[#6b6f7b]">
-                    GENERATED MARKDOWN
+                    {t("review.generatedMarkdown")}
                   </span>
                   <ToggleGroup
                     className="rounded-md bg-secondary p-0.5"
@@ -223,7 +408,7 @@ export function SectionDetail({
                         key={mode}
                         value={mode}
                       >
-                        {mode === "preview" ? "Preview" : "Edit"}
+                        {t(mode === "preview" ? "common.preview" : "common.edit")}
                       </ToggleGroupItem>
                     ))}
                   </ToggleGroup>
@@ -255,7 +440,7 @@ export function SectionDetail({
         </>
       ) : (
         <Card className="rounded-[10px] p-6 text-sm text-[#6b6f7b]">
-          No review sections are available.
+          {t("review.noSections")}
         </Card>
       )}
     </div>

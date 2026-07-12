@@ -6,10 +6,26 @@ import {
   createDemoDocument,
   saveClientDocument,
 } from "@/lib/client-document-store";
+import { useT } from "@/lib/i18n/locale-context";
+import type { DictionaryKey } from "@/lib/i18n/dictionaries";
 import { isSelfHostedMode } from "@/lib/mode";
 import type { DocumentJobStatus, StoredDocumentJob } from "@/lib/types";
 
-export type Provider = "openai" | "mock";
+// "anthropic" is only offered in self-hosted mode (see page.tsx /
+// batch-queue.tsx) — the hosted /api/convert-direct flow stays OpenAI-only.
+export type Provider = "openai" | "anthropic" | "mock";
+
+// Shared between page.tsx and batch-queue.tsx's provider toggles.
+export function providerLabelKey(provider: Provider): DictionaryKey {
+  switch (provider) {
+    case "openai":
+      return "common.providerOpenAI";
+    case "anthropic":
+      return "common.providerAnthropic";
+    case "mock":
+      return "common.providerDemo";
+  }
+}
 
 const POLL_INTERVAL_MS = 1500;
 
@@ -31,20 +47,20 @@ function progressForStatus(status: DocumentJobStatus): number {
   }
 }
 
-function messageForStatus(status: DocumentJobStatus): string {
+function messageKeyForStatus(status: DocumentJobStatus): DictionaryKey {
   switch (status) {
     case "uploaded":
-      return "Uploaded. Extracting content...";
+      return "upload.statusUploaded";
     case "normalizing":
-      return "Extracting text, tables, and page images...";
+      return "upload.statusNormalizing";
     case "converting":
-      return "Converting with the LLM provider...";
+      return "upload.statusConverting";
     case "ready":
-      return "Review workspace is ready.";
+      return "upload.workspaceReady";
     case "failed":
-      return "Conversion failed.";
+      return "upload.statusFailed";
     default:
-      return "Working...";
+      return "upload.statusWorking";
   }
 }
 
@@ -57,6 +73,7 @@ function messageForStatus(status: DocumentJobStatus): string {
  */
 export function useDocumentUpload() {
   const router = useRouter();
+  const { t } = useT();
   const [isConverting, setIsConverting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
@@ -67,26 +84,28 @@ export function useDocumentUpload() {
     setProgress(0);
   }
 
-  async function convertHosted(file: File, provider: Provider) {
+  async function convertHostedFile(
+    file: File,
+    provider: Provider,
+  ): Promise<{ id: string }> {
     setProgress(24);
-    setMessage("Uploading source document...");
+    setMessage(t("upload.uploadingSource"));
 
     if (provider === "mock") {
       setProgress(68);
-      setMessage("Preparing browser-based demo content...");
+      setMessage(t("upload.preparingDemo"));
       const demoDocument = createDemoDocument(file);
       saveClientDocument(demoDocument);
       setProgress(100);
-      setMessage("Review workspace is ready.");
-      router.push(`/review/${demoDocument.id}`);
-      return;
+      setMessage(t("upload.workspaceReady"));
+      return { id: demoDocument.id };
     }
 
     const formData = new FormData();
     formData.append("file", file);
 
     setProgress(52);
-    setMessage("Analyzing the document with OpenAI...");
+    setMessage(t("upload.analyzingOpenAI"));
     const uploadResponse = await fetch("/api/convert-direct", {
       method: "POST",
       body: formData,
@@ -94,20 +113,23 @@ export function useDocumentUpload() {
     const uploadPayload = await uploadResponse.json();
 
     if (!uploadResponse.ok) {
-      throw new Error(uploadPayload.error ?? "Upload failed.");
+      throw new Error(uploadPayload.error ?? t("upload.uploadFailed"));
     }
 
     const document = uploadPayload.document as StoredDocumentJob;
     saveClientDocument(document);
 
     setProgress(100);
-    setMessage("Review workspace is ready.");
-    router.push(`/review/${document.id}`);
+    setMessage(t("upload.workspaceReady"));
+    return { id: document.id };
   }
 
-  async function convertSelfHosted(file: File, provider: Provider) {
+  async function convertSelfHostedFile(
+    file: File,
+    provider: Provider,
+  ): Promise<{ id: string }> {
     setProgress(5);
-    setMessage("Uploading source document...");
+    setMessage(t("upload.uploadingSource"));
 
     const formData = new FormData();
     formData.append("file", file);
@@ -119,12 +141,12 @@ export function useDocumentUpload() {
     const createPayload = await createResponse.json();
 
     if (!createResponse.ok) {
-      throw new Error(createPayload.error ?? "Upload failed.");
+      throw new Error(createPayload.error ?? t("upload.uploadFailed"));
     }
 
     const job = createPayload.document as StoredDocumentJob;
     setProgress(progressForStatus(job.status));
-    setMessage(messageForStatus(job.status));
+    setMessage(t(messageKeyForStatus(job.status)));
 
     // Poll job status for real progress while the (long-running) convert
     // request is in flight. Cleared in the `finally` below regardless of
@@ -137,7 +159,14 @@ export function useDocumentUpload() {
           document: StoredDocumentJob;
         };
         setProgress(progressForStatus(statusPayload.document.status));
-        setMessage(messageForStatus(statusPayload.document.status));
+        // F-10: while a large document is being converted in page windows,
+        // the job carries a human-readable statusDetail ("Converting pages
+        // 7-12 of 23...") that's more useful than the generic converting
+        // message — prefer it when present.
+        setMessage(
+          statusPayload.document.statusDetail ??
+            t(messageKeyForStatus(statusPayload.document.status)),
+        );
       } catch {
         // Transient polling failure; the convert response below remains
         // the source of truth for success/failure.
@@ -145,9 +174,10 @@ export function useDocumentUpload() {
     }, POLL_INTERVAL_MS);
 
     try {
-      const providerParam = provider === "mock" ? "mock" : "openai";
+      // Provider's members ("openai" | "anthropic" | "mock") are already
+      // valid values for the convert route's ?provider= query param.
       const convertResponse = await fetch(
-        `/api/documents/${job.id}/convert?provider=${providerParam}`,
+        `/api/documents/${job.id}/convert?provider=${provider}`,
         { method: "POST" },
       );
       const convertPayload = (await convertResponse.json()) as {
@@ -156,14 +186,12 @@ export function useDocumentUpload() {
       };
 
       if (!convertResponse.ok) {
-        throw new Error(
-          convertPayload.error ?? "Document conversion failed.",
-        );
+        throw new Error(convertPayload.error ?? t("upload.statusFailed"));
       }
 
       setProgress(100);
-      setMessage("Review workspace is ready.");
-      router.push(`/review/${job.id}`);
+      setMessage(t("upload.workspaceReady"));
+      return { id: job.id };
     } finally {
       if (pollTimerRef.current) {
         clearInterval(pollTimerRef.current);
@@ -172,20 +200,39 @@ export function useDocumentUpload() {
     }
   }
 
+  /**
+   * Runs one file through the hosted or self-hosted conversion pipeline
+   * (whichever `isSelfHostedMode()` selects) and resolves with the resulting
+   * document id, without navigating anywhere. This is the shared core used
+   * by both `convert` below (single-file upload flow, which navigates to
+   * the review page on success) and the batch queue (src/app/batch-queue.tsx),
+   * which calls this once per file, sequentially, and tracks per-row status
+   * itself instead of relying on this hook's single shared
+   * message/progress state.
+   */
+  async function convertSingleFile(
+    file: File,
+    provider: Provider,
+  ): Promise<{ id: string }> {
+    if (isSelfHostedMode()) {
+      return convertSelfHostedFile(file, provider);
+    }
+    return convertHostedFile(file, provider);
+  }
+
   async function convert(file: File, provider: Provider) {
     setIsConverting(true);
     setProgress(0);
     setMessage(null);
 
     try {
-      if (isSelfHostedMode()) {
-        await convertSelfHosted(file, provider);
-      } else {
-        await convertHosted(file, provider);
-      }
+      const { id } = await convertSingleFile(file, provider);
+      router.push(`/review/${id}`);
     } catch (error) {
       setProgress(0);
-      setMessage(error instanceof Error ? error.message : "Conversion failed.");
+      setMessage(
+        error instanceof Error ? error.message : t("upload.statusFailed"),
+      );
     } finally {
       setIsConverting(false);
     }
@@ -196,6 +243,7 @@ export function useDocumentUpload() {
     message,
     progress,
     convert,
+    convertSingleFile,
     setMessage,
     resetStatus,
   };

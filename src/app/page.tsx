@@ -3,7 +3,12 @@
 import { useRouter } from "next/navigation";
 import { ChangeEvent, DragEvent, FormEvent, useRef, useState } from "react";
 import { AppHeader } from "@/app/components/app-header";
-import { useDocumentUpload, type Provider } from "@/app/use-document-upload";
+import { BatchQueue } from "@/app/batch-queue";
+import {
+  providerLabelKey,
+  useDocumentUpload,
+  type Provider,
+} from "@/app/use-document-upload";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -15,59 +20,89 @@ import {
   createDemoDocument,
   saveClientDocument,
 } from "@/lib/client-document-store";
+import { formatBytes } from "@/lib/format-bytes";
+import { useT } from "@/lib/i18n/locale-context";
 import { MAX_DIRECT_UPLOAD_BYTES, MAX_UPLOAD_BYTES } from "@/lib/limits";
 import { isSelfHostedMode } from "@/lib/mode";
 
-function formatBytes(bytes: number) {
-  if (bytes < 1024 * 1024) {
-    return `${Math.max(1, Math.round(bytes / 1024))} KB`;
-  }
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
 export default function Home() {
   const router = useRouter();
+  const { t } = useT();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
+  // Bumped every time a fresh selection is made so BatchQueue (keyed on
+  // this) remounts with clean per-row state instead of reusing stale rows
+  // from a previous batch.
+  const [batchKey, setBatchKey] = useState(0);
   const [provider, setProvider] = useState<Provider>("openai");
   const [isDragging, setIsDragging] = useState(false);
   const selfHosted = isSelfHostedMode();
   const maxUploadBytes = selfHosted ? MAX_UPLOAD_BYTES : MAX_DIRECT_UPLOAD_BYTES;
+  const maxUploadMb = Math.round(maxUploadBytes / (1024 * 1024));
+  // The Anthropic provider only runs through the self-hosted server
+  // pipeline (see F-5) — the hosted /api/convert-direct flow stays
+  // OpenAI-only, so the toggle only offers it in self-hosted mode.
+  const providerOptions: Provider[] = selfHosted
+    ? ["openai", "anthropic", "mock"]
+    : ["openai", "mock"];
 
-  const { isConverting, message, progress, convert, setMessage, resetStatus } =
-    useDocumentUpload();
+  const {
+    isConverting,
+    message,
+    progress,
+    convert,
+    convertSingleFile,
+    setMessage,
+    resetStatus,
+  } = useDocumentUpload();
 
-  function chooseFile(nextFile?: File) {
-    if (!nextFile) {
+  // Exactly one file keeps today's single-file card UI and flow untouched;
+  // two or more switches to the batch queue (see BatchQueue below).
+  const file = files.length === 1 ? files[0] : null;
+  const isBatch = files.length > 1;
+
+  function chooseFiles(nextFiles: FileList | null) {
+    if (!nextFiles || nextFiles.length === 0) {
       return;
     }
-    setFile(nextFile);
+    setFiles(Array.from(nextFiles));
+    setBatchKey((key) => key + 1);
     resetStatus();
   }
 
   function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
-    chooseFile(event.target.files?.[0]);
+    chooseFiles(event.target.files);
   }
 
   function handleDrop(event: DragEvent<HTMLButtonElement>) {
     event.preventDefault();
     setIsDragging(false);
-    chooseFile(event.dataTransfer.files?.[0]);
+    chooseFiles(event.dataTransfer.files);
+  }
+
+  function resetSelection() {
+    setFiles([]);
+    setMessage(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     if (!file) {
-      setMessage("Choose a PDF, DOCX, PPTX, PNG, or JPG file.");
+      setMessage(t("upload.chooseFileError"));
       return;
     }
 
     if (file.size > maxUploadBytes) {
       setMessage(
-        selfHosted
-          ? "File is too large. The self-hosted limit is 25 MB."
-          : "File is too large. The hosted demo limit is 4 MB.",
+        t(
+          selfHosted
+            ? "common.fileTooLargeSelfHosted"
+            : "common.fileTooLargeHosted",
+        ),
       );
       return;
     }
@@ -83,18 +118,17 @@ export default function Home() {
         <form className="w-full max-w-[620px]" onSubmit={handleSubmit}>
           <div>
             <h1 className="text-[26px] font-semibold leading-tight">
-              Convert a document
+              {t("upload.title")}
             </h1>
             <p className="mt-2 max-w-[590px] text-sm leading-6 text-[#6b6f7b]">
-              Upload a PowerPoint, Word, PDF, or image file. Docutor extracts
-              text, tables, and diagrams, then converts them into structured
-              Markdown you can review section by section.
+              {t("upload.description")}
             </p>
           </div>
 
           <input
             accept=".pdf,.docx,.pptx,.png,.jpg,.jpeg,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.presentationml.presentation,image/png,image/jpeg"
             className="sr-only"
+            multiple
             onChange={handleFileChange}
             ref={fileInputRef}
             type="file"
@@ -117,15 +151,14 @@ export default function Home() {
               ↑
             </span>
             <span className="mt-3 text-sm font-medium">
-              Drop a file here, or click to browse
+              {t("upload.dropzone")}
             </span>
             <span className="mt-1 text-xs text-[#8b8f9a]">
-              .pptx · .docx · .pdf · .png · .jpg — max{" "}
-              {selfHosted ? "25 MB" : "4 MB"}
+              {t("upload.hint", { mb: maxUploadMb })}
             </span>
           </button>
 
-          {!file ? (
+          {files.length === 0 ? (
             <Button
               className="mt-3 w-full"
               onClick={() => {
@@ -140,7 +173,7 @@ export default function Home() {
               type="button"
               variant="outline"
             >
-              Try with a sample document
+              {t("upload.tryDemo")}
             </Button>
           ) : null}
 
@@ -157,18 +190,12 @@ export default function Home() {
                   </p>
                 </div>
                 <Badge className="bg-success/10 text-success">
-                  ✓ Ready
+                  {t("upload.fileReady")}
                 </Badge>
                 <Button
-                  aria-label="Remove selected file"
+                  aria-label={t("upload.removeFileAria")}
                   className="text-[#8b8f9a] hover:text-destructive"
-                  onClick={() => {
-                    setFile(null);
-                    setMessage(null);
-                    if (fileInputRef.current) {
-                      fileInputRef.current.value = "";
-                    }
-                  }}
+                  onClick={resetSelection}
                   size="icon-sm"
                   type="button"
                   variant="ghost"
@@ -180,7 +207,7 @@ export default function Home() {
               <Separator />
               <div className="flex flex-wrap items-center gap-3 px-4 py-3">
                 <span className="text-xs font-medium text-[#6b6f7b]">
-                  Conversion mode
+                  {t("common.conversionMode")}
                 </span>
                 <ToggleGroup
                   className="rounded-md bg-secondary p-0.5"
@@ -191,13 +218,13 @@ export default function Home() {
                   spacing={0}
                   value={[provider]}
                 >
-                  {(["openai", "mock"] as Provider[]).map((option) => (
+                  {providerOptions.map((option) => (
                     <ToggleGroupItem
                       className="rounded-[5px] px-3 py-1 text-xs font-medium hover:bg-transparent data-pressed:bg-white data-pressed:text-foreground data-pressed:shadow-sm"
                       key={option}
                       value={option}
                     >
-                      {option === "openai" ? "OpenAI" : "Demo"}
+                      {t(providerLabelKey(option))}
                     </ToggleGroupItem>
                   ))}
                 </ToggleGroup>
@@ -224,13 +251,26 @@ export default function Home() {
                   size="lg"
                   type="submit"
                 >
-                  {isConverting ? "Converting document..." : "Convert document →"}
+                  {isConverting ? t("upload.converting") : t("upload.convertCta")}
                 </Button>
               </div>
             </Card>
           ) : null}
 
-          {message && !isConverting ? (
+          {isBatch ? (
+            <BatchQueue
+              convertSingleFile={convertSingleFile}
+              files={files}
+              key={batchKey}
+              maxUploadBytes={maxUploadBytes}
+              onProviderChange={setProvider}
+              onReset={resetSelection}
+              provider={provider}
+              selfHosted={selfHosted}
+            />
+          ) : null}
+
+          {message && !isConverting && !isBatch ? (
             <Alert
               className={
                 progress === 100

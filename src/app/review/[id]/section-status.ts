@@ -1,3 +1,4 @@
+import type { DictionaryKey } from "@/lib/i18n/dictionaries";
 import type { DiagramSection, ReviewSection } from "@/lib/types";
 
 export function isDiagramSection(
@@ -26,13 +27,36 @@ export function statusDotClass(status: ReviewSection["reviewStatus"]) {
   return "bg-[#9aa0ab]";
 }
 
-export function statusLabel(status: ReviewSection["reviewStatus"]) {
-  if (status === "accepted") return "Accepted";
-  if (status === "rejected") return "Rejected";
-  if (status === "regenerating") return "Regenerating";
-  return "Pending review";
+// Returns a dictionary key rather than translated text directly: this file
+// is a plain module (not a hook or component), so it can't call useT()
+// itself. Callers resolve the label with their own t() — e.g.
+// `t(statusLabelKey(section.reviewStatus))`.
+export function statusLabelKey(
+  status: ReviewSection["reviewStatus"],
+): DictionaryKey {
+  if (status === "accepted") return "reviewStatus.accepted";
+  if (status === "rejected") return "reviewStatus.rejected";
+  if (status === "regenerating") return "reviewStatus.regenerating";
+  return "reviewStatus.pending";
 }
 
-export function typeLabel(section: ReviewSection) {
-  return section.type === "paragraph" ? "TEXT" : section.type.toUpperCase();
+export function typeLabelKey(section: ReviewSection): DictionaryKey {
+  switch (section.type) {
+    case "heading":
+      return "sectionType.heading";
+    case "paragraph":
+      return "sectionType.text";
+    case "table":
+      return "sectionType.table";
+    case "diagram":
+      return "sectionType.diagram";
+    case "image":
+      return "sectionType.image";
+    case "requirement":
+      return "sectionType.requirement";
+    case "note":
+      return "sectionType.note";
+    default:
+      return "sectionType.text";
+  }
 }

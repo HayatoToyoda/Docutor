@@ -15,6 +15,7 @@ import {
 import type {
   ConversionProvider,
   NormalizedDocument,
+  RegenerateSectionOptions,
   ReviewDocument,
   ReviewSection,
 } from "@/lib/types";
@@ -217,9 +218,13 @@ export function createCodexLocalProvider(): ConversionProvider {
     async regenerateSection(
       input: NormalizedDocument,
       section: ReviewSection,
+      options?: RegenerateSectionOptions,
     ): Promise<ReviewSection> {
       const responseText = await runCodexTurn(
-        buildCodexInputs(input, buildSectionRegenerationPrompt(input, section)),
+        buildCodexInputs(
+          input,
+          buildSectionRegenerationPrompt(input, section, options?.instruction),
+        ),
       );
       return normalizeReviewSection(
         reviewSectionSchema.parse(JSON.parse(extractJson(responseText))),

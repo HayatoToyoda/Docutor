@@ -72,9 +72,26 @@ ${JSON.stringify(
 `.trim();
 }
 
+// Reviewer-instruction block shared by both regeneration prompts (F-3):
+// stated first (before the section JSON) so the model treats it as the
+// primary directive, while still being bound by the same anti-fabrication
+// rule as the rest of the system prompt.
+function buildInstructionBlock(instruction?: string): string {
+  const trimmed = instruction?.trim();
+  if (!trimmed) {
+    return "";
+  }
+
+  return `
+Reviewer instruction (follow it with the highest priority, but never fabricate facts that are not supported by the source/context; mark anything you cannot verify as TODO: or Unclear:):
+${trimmed}
+`;
+}
+
 export function buildSectionRegenerationPrompt(
   document: NormalizedDocument,
   section: ReviewSection,
+  instruction?: string,
 ) {
   const targetSection = stripFieldsForPrompt(section, {
     stripDrawioXml: false,
@@ -82,7 +99,7 @@ export function buildSectionRegenerationPrompt(
 
   return `
 Regenerate exactly one review section from the normalized document.
-
+${buildInstructionBlock(instruction)}
 Keep this section id: ${section.id}
 Keep this section type: ${section.type}
 
@@ -129,6 +146,7 @@ export function buildDirectSectionRegenerationPrompt(
     sections: ReviewSection[];
   },
   section: ReviewSection,
+  instruction?: string,
 ) {
   const targetSection = stripFieldsForPrompt(section, {
     stripDrawioXml: false,
@@ -144,7 +162,7 @@ Regenerate exactly one review section for this document. The original source
 file is not attached to this request, so rely only on the document context
 below. Do not invent facts that are not already present in that context;
 mark anything you cannot verify as "TODO:" or "Unclear:".
-
+${buildInstructionBlock(instruction)}
 Document title: ${document.title}
 Source file name: ${document.sourceFileName}
 Source file type: ${document.sourceFileType}

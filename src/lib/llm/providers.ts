@@ -1,3 +1,4 @@
+import { createAnthropicProvider } from "@/lib/llm/anthropic-provider";
 import { createCodexLocalProvider } from "@/lib/llm/codex-local-provider";
 import { createMockProvider } from "@/lib/llm/mock-provider";
 import { createOpenAIProvider } from "@/lib/llm/openai-provider";
@@ -10,6 +11,10 @@ export function createConversionProvider(
 ): ConversionProvider {
   if (providerName === "openai") {
     return createOpenAIProvider();
+  }
+
+  if (providerName === "anthropic") {
+    return createAnthropicProvider();
   }
 
   if (providerName === "mock") {

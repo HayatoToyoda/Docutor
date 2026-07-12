@@ -26,7 +26,11 @@ export type DiagramFormat = "mermaid" | "drawio";
 
 export type ConversionMode = "mock" | "real";
 
-export type ConversionProviderName = "openai" | "codex-local" | "mock";
+export type ConversionProviderName =
+  | "openai"
+  | "anthropic"
+  | "codex-local"
+  | "mock";
 
 export type NormalizedAsset = {
   id: string;
@@ -143,14 +147,44 @@ export type StoredDocumentJob = {
   normalizedDocument?: NormalizedDocument;
   reviewDocument?: ReviewDocument;
   error?: string;
+  // F-10: human-readable progress detail for long-running conversions of
+  // large documents, e.g. "Converting pages 7-12 of 23...". Set by the
+  // convert route's chunked-conversion progress callback while status is
+  // "converting", and cleared (undefined) once the job reaches "ready" or
+  // "failed" so it never lingers as stale text.
+  statusDetail?: string;
   // Single-copy data URL of the original upload for the direct flow's
   // comparison view (avoids duplicating the image onto every section).
   directSourceImage?: string;
 };
 
+// Lightweight summary of a StoredDocumentJob for the F-1 history dashboard —
+// deliberately omits normalizedDocument/reviewDocument (see
+// listDocumentJobSummaries) so listing many jobs stays cheap and never leaks
+// full review content through the list endpoint.
+export type DocumentJobSummary = {
+  id: string;
+  status: DocumentJobStatus;
+  sourceFileName: string;
+  sourceFileType: SourceFileType;
+  createdAt: string;
+  updatedAt: string;
+  sectionCount: number;
+  acceptedCount: number;
+  pendingCount: number;
+  rejectedCount: number;
+};
+
 export type PythonWorkerResult = {
   document: NormalizedDocument;
   stderr?: string;
+};
+
+export type RegenerateSectionOptions = {
+  // Optional free-text reviewer instruction (F-3) steering this
+  // regeneration, e.g. "the arrow between steps 2 and 3 points the wrong
+  // way".
+  instruction?: string;
 };
 
 export type ConversionProvider = {
@@ -159,5 +193,6 @@ export type ConversionProvider = {
   regenerateSection?(
     input: NormalizedDocument,
     section: ReviewSection,
+    options?: RegenerateSectionOptions,
   ): Promise<ReviewSection>;
 };
