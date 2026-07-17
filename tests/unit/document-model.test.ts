@@ -3,6 +3,7 @@ import {
   applySectionPatch,
   buildExportManifest,
   collectDiagramExports,
+  sanitizeSectionPatch,
 } from "../../src/lib/document-model";
 import { reviewDocumentFixture } from "../fixtures/review-document";
 import type {
@@ -117,6 +118,84 @@ describe("applySectionPatch", () => {
 
     expect(updated.sections[0].generatedMarkdown).toBe(
       "- Updated requirement text.",
+    );
+  });
+});
+
+// Regression for issue #19: the PATCH route used to cast the raw request
+// body to SectionPatch and spread it onto the stored section, letting a
+// hand-crafted request overwrite server-owned fields (id/type/sourceImage…)
+// or store an invalid reviewStatus.
+describe("sanitizeSectionPatch", () => {
+  it("passes through a full valid patch", () => {
+    const patch = sanitizeSectionPatch({
+      generatedMarkdown: "New markdown",
+      generatedCode: "flowchart TD\n  A --> B",
+      drawioXml: "<mxGraphModel/>",
+      reviewStatus: "accepted",
+      notes: ["a note"],
+    });
+
+    expect(patch).toEqual({
+      generatedMarkdown: "New markdown",
+      generatedCode: "flowchart TD\n  A --> B",
+      drawioXml: "<mxGraphModel/>",
+      reviewStatus: "accepted",
+      notes: ["a note"],
+    });
+  });
+
+  it("drops unknown keys (server-owned fields cannot be overwritten)", () => {
+    const patch = sanitizeSectionPatch({
+      reviewStatus: "rejected",
+      id: "sec_hijacked",
+      type: "paragraph",
+      sourcePage: 99,
+      sourceImage: "data:image/png;base64,xxxx",
+      title: "New title",
+    });
+
+    expect(patch).toEqual({ reviewStatus: "rejected" });
+  });
+
+  it("accepts an empty object as a no-op patch", () => {
+    expect(sanitizeSectionPatch({})).toEqual({});
+  });
+
+  it("rejects wrong-typed known fields", () => {
+    expect(sanitizeSectionPatch({ generatedMarkdown: 5 })).toBeNull();
+    expect(sanitizeSectionPatch({ generatedCode: null })).toBeNull();
+    expect(sanitizeSectionPatch({ drawioXml: {} })).toBeNull();
+    expect(sanitizeSectionPatch({ notes: "not-an-array" })).toBeNull();
+    expect(sanitizeSectionPatch({ notes: ["ok", 42] })).toBeNull();
+  });
+
+  it("rejects an invalid reviewStatus value", () => {
+    expect(sanitizeSectionPatch({ reviewStatus: "bogus" })).toBeNull();
+    expect(sanitizeSectionPatch({ reviewStatus: 1 })).toBeNull();
+  });
+
+  it("rejects non-object bodies", () => {
+    expect(sanitizeSectionPatch(null)).toBeNull();
+    expect(sanitizeSectionPatch("string")).toBeNull();
+    expect(sanitizeSectionPatch(42)).toBeNull();
+    expect(sanitizeSectionPatch([{ reviewStatus: "accepted" }])).toBeNull();
+  });
+
+  it("produces patches applySectionPatch accepts", () => {
+    const patch = sanitizeSectionPatch({
+      generatedMarkdown: "- Sanitized requirement text.",
+      ignoredKey: "ignored",
+    });
+
+    expect(patch).not.toBeNull();
+    const updated = applySectionPatch(
+      reviewDocumentFixture,
+      "sec_requirement_1",
+      patch!,
+    );
+    expect(updated.sections[0].generatedMarkdown).toBe(
+      "- Sanitized requirement text.",
     );
   });
 });

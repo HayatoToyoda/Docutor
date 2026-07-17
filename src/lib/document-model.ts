@@ -20,6 +20,72 @@ export type SectionPatch = {
   notes?: string[];
 };
 
+const REVIEW_STATUSES: ReadonlyArray<ReviewSection["reviewStatus"]> = [
+  "pending",
+  "accepted",
+  "rejected",
+  "regenerating",
+];
+
+/**
+ * Validates an untrusted request body into a `SectionPatch`, for the server
+ * PATCH route. `applySectionPatch` spreads the patch onto the stored
+ * section, so passing a raw body through would let a hand-crafted request
+ * overwrite server-owned fields (`id`, `type`, `sourcePage`, `sourceImage`,
+ * …) or store an invalid `reviewStatus` — only the five SectionPatch keys
+ * are copied over, and unknown keys are ignored.
+ *
+ * Returns `null` — callers translate that to a 400 — when the body isn't a
+ * plain object or a known key carries the wrong type/value. An empty object
+ * is a valid (no-op) patch, matching the route's previous behavior. The
+ * client store doesn't need this: it only ever builds typed patches.
+ */
+export function sanitizeSectionPatch(input: unknown): SectionPatch | null {
+  if (typeof input !== "object" || input === null || Array.isArray(input)) {
+    return null;
+  }
+
+  const raw = input as Record<string, unknown>;
+  const patch: SectionPatch = {};
+
+  if (raw.generatedMarkdown !== undefined) {
+    if (typeof raw.generatedMarkdown !== "string") return null;
+    patch.generatedMarkdown = raw.generatedMarkdown;
+  }
+
+  if (raw.generatedCode !== undefined) {
+    if (typeof raw.generatedCode !== "string") return null;
+    patch.generatedCode = raw.generatedCode;
+  }
+
+  if (raw.drawioXml !== undefined) {
+    if (typeof raw.drawioXml !== "string") return null;
+    patch.drawioXml = raw.drawioXml;
+  }
+
+  if (raw.reviewStatus !== undefined) {
+    if (
+      typeof raw.reviewStatus !== "string" ||
+      !REVIEW_STATUSES.includes(raw.reviewStatus as ReviewSection["reviewStatus"])
+    ) {
+      return null;
+    }
+    patch.reviewStatus = raw.reviewStatus as ReviewSection["reviewStatus"];
+  }
+
+  if (raw.notes !== undefined) {
+    if (
+      !Array.isArray(raw.notes) ||
+      raw.notes.some((note) => typeof note !== "string")
+    ) {
+      return null;
+    }
+    patch.notes = raw.notes as string[];
+  }
+
+  return patch;
+}
+
 /**
  * Appends a `[instruction] <text>` audit-trail entry to a section's notes,
  * used after an instructed regeneration (F-3) to record what the reviewer
