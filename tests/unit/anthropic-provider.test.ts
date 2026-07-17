@@ -400,4 +400,60 @@ describe("createAnthropicProvider().convert happy path (mocked SDK)", () => {
     expect(result?.id).toBe(section.id);
     expect(result?.reviewStatus).toBe("pending");
   });
+
+  // Regression for issue #17: the regeneration request used to be seeded
+  // with the whole-document conversion prompt and then append the
+  // regeneration prompt (which embeds the same document context again) —
+  // sending the normalized-document JSON twice, under a directive to
+  // convert the entire document instead of one section.
+  it("regeneration sends the document context once and no whole-document conversion directive", async () => {
+    messagesCreateMock.mockResolvedValue({
+      id: "msg_4",
+      type: "message",
+      role: "assistant",
+      model: "claude-sonnet-5",
+      stop_reason: "tool_use",
+      stop_sequence: null,
+      usage: { input_tokens: 10, output_tokens: 10 },
+      content: [
+        {
+          type: "tool_use",
+          id: "toolu_3",
+          name: REVIEW_SECTION_TOOL_NAME,
+          input: validNonDiagramSection,
+        },
+      ],
+    });
+
+    const provider = createAnthropicProvider();
+    const document = buildNormalizedDocument();
+    const section = {
+      id: "sec_summary_1",
+      type: "paragraph" as const,
+      title: "Old title",
+      sourcePage: 1,
+      generatedMarkdown: "Old content",
+      reviewStatus: "accepted" as const,
+    };
+
+    await provider.regenerateSection?.(document, section);
+
+    const callArgs = messagesCreateMock.mock.calls[0][0];
+    const textBlocks = (
+      callArgs.messages[0].content as Array<{ type: string; text?: string }>
+    ).filter((block) => block.type === "text");
+    const requestText = textBlocks.map((block) => block.text).join("\n");
+
+    expect(requestText).toContain("Regenerate exactly one review section");
+    // The whole-document task directive must not appear anywhere in a
+    // regeneration request.
+    expect(requestText).not.toContain(
+      "Convert this normalized document into a review document.",
+    );
+    // The normalized-document JSON appears exactly once (as the
+    // regeneration prompt's context block), not twice.
+    const fileNameOccurrences =
+      requestText.split('"sourceFileName": "sample.pdf"').length - 1;
+    expect(fileNameOccurrences).toBe(1);
+  });
 });

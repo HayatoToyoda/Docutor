@@ -129,14 +129,15 @@ async function imagePathToBase64(path: string) {
   return data.toString("base64");
 }
 
-async function buildUserContent(document: NormalizedDocument) {
-  const content: ContentBlockParam[] = [
-    {
-      type: "text",
-      text: buildDocumentConversionPrompt(document),
-    },
-  ];
-
+// Page images attached as vision content (capped at MAX_PAGE_IMAGES),
+// shared by convert and regenerateSection. Only the leading text block
+// differs per task: convert prepends the document-conversion prompt, while
+// regeneration prepends buildSectionRegenerationPrompt — which already
+// embeds the document context, so seeding the conversion prompt there too
+// would send the entire normalized-document JSON twice and instruct the
+// model to convert the whole document (issue #17).
+async function buildPageImageContent(document: NormalizedDocument) {
+  const content: ContentBlockParam[] = [];
   const { pageImages, truncatedPageImageCount } = collectPageImages(document);
 
   for (const asset of pageImages) {
@@ -156,6 +157,21 @@ async function buildUserContent(document: NormalizedDocument) {
       });
     }
   }
+
+  return { content, truncatedPageImageCount };
+}
+
+async function buildUserContent(document: NormalizedDocument) {
+  const { content: imageContent, truncatedPageImageCount } =
+    await buildPageImageContent(document);
+
+  const content: ContentBlockParam[] = [
+    {
+      type: "text",
+      text: buildDocumentConversionPrompt(document),
+    },
+    ...imageContent,
+  ];
 
   return { content, truncatedPageImageCount };
 }
@@ -215,15 +231,18 @@ export function createAnthropicProvider(): ConversionProvider {
     },
     async regenerateSection(input, section, options) {
       const client = createClient();
-      const { content } = await buildUserContent(input);
-      content.push({
-        type: "text",
-        text: buildSectionRegenerationPrompt(
-          input,
-          section,
-          options?.instruction,
-        ),
-      });
+      const { content: imageContent } = await buildPageImageContent(input);
+      const content: ContentBlockParam[] = [
+        {
+          type: "text",
+          text: buildSectionRegenerationPrompt(
+            input,
+            section,
+            options?.instruction,
+          ),
+        },
+        ...imageContent,
+      ];
 
       const response = await client.messages.create({
         model: process.env.ANTHROPIC_MODEL ?? DEFAULT_MODEL,

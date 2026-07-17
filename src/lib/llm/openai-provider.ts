@@ -42,14 +42,15 @@ async function imagePathToDataUrl(path: string, mimeType = "image/png") {
   return `data:${mimeType};base64,${data.toString("base64")}`;
 }
 
-async function buildUserContent(document: NormalizedDocument) {
-  const content: ResponseInputContent[] = [
-    {
-      type: "input_text",
-      text: buildDocumentConversionPrompt(document),
-    },
-  ];
-
+// Page images attached as vision content (capped at MAX_PAGE_IMAGES),
+// shared by convert and regenerateSection. Only the leading text block
+// differs per task: convert prepends the document-conversion prompt, while
+// regeneration prepends buildSectionRegenerationPrompt — which already
+// embeds the document context, so seeding the conversion prompt there too
+// would send the entire normalized-document JSON twice and instruct the
+// model to convert the whole document (issue #17).
+async function buildPageImageContent(document: NormalizedDocument) {
+  const content: ResponseInputContent[] = [];
   const { pageImages, truncatedPageImageCount } = collectPageImages(document);
 
   for (const asset of pageImages) {
@@ -66,6 +67,21 @@ async function buildUserContent(document: NormalizedDocument) {
       });
     }
   }
+
+  return { content, truncatedPageImageCount };
+}
+
+async function buildUserContent(document: NormalizedDocument) {
+  const { content: imageContent, truncatedPageImageCount } =
+    await buildPageImageContent(document);
+
+  const content: ResponseInputContent[] = [
+    {
+      type: "input_text",
+      text: buildDocumentConversionPrompt(document),
+    },
+    ...imageContent,
+  ];
 
   return { content, truncatedPageImageCount };
 }
@@ -234,15 +250,18 @@ export function createOpenAIProvider(): ConversionProvider {
     },
     async regenerateSection(input, section, options) {
       const client = createClient();
-      const { content } = await buildUserContent(input);
-      content.push({
-        type: "input_text",
-        text: buildSectionRegenerationPrompt(
-          input,
-          section,
-          options?.instruction,
-        ),
-      });
+      const { content: imageContent } = await buildPageImageContent(input);
+      const content: ResponseInputContent[] = [
+        {
+          type: "input_text",
+          text: buildSectionRegenerationPrompt(
+            input,
+            section,
+            options?.instruction,
+          ),
+        },
+        ...imageContent,
+      ];
 
       const response = await client.responses.parse({
         model: process.env.OPENAI_MODEL ?? DEFAULT_MODEL,
