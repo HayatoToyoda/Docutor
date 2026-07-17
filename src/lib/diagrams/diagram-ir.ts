@@ -11,8 +11,11 @@ function sanitizeId(id: string) {
   return sanitized || "node";
 }
 
+// Mermaid has no backslash escapes — a literal `"` inside a quoted label
+// must be written as the entity `#quot;` (`\"` is a parse error in decision
+// nodes and edge labels). Verified against mermaid@11.
 function escapeMermaidLabel(label: string) {
-  return label.replace(/"/g, '\\"');
+  return label.replace(/"/g, "#quot;");
 }
 
 function escapeXml(value: string) {
@@ -53,7 +56,10 @@ export function diagramIRToMermaid(ir: DiagramIR) {
   for (const edge of ir.edges) {
     const from = sanitizeId(edge.from);
     const to = sanitizeId(edge.to);
-    const label = edge.label ? `|${escapeMermaidLabel(edge.label)}|` : "";
+    // Edge labels are emitted in quoted form so a `|` inside the label
+    // can't terminate the |...| block early (unquoted `-->|a | b|` is a
+    // parse error; quoted `-->|"a | b"|` is valid).
+    const label = edge.label ? `|"${escapeMermaidLabel(edge.label)}"|` : "";
     lines.push(`  ${from} -->${label} ${to}`);
   }
 
