@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import OpenAI from "openai";
 import { zodTextFormat } from "openai/helpers/zod";
 import type { ResponseInputContent } from "openai/resources/responses/responses";
+import { z } from "zod";
 import {
   reviewDocumentSchema,
   reviewSectionSchema,
@@ -29,6 +30,17 @@ import type {
 } from "@/lib/types";
 
 const DEFAULT_MODEL = "gpt-5.5";
+
+// OpenAI structured outputs require the root schema to be `type: "object"`;
+// reviewSectionSchema is a root-level union (anyOf), which zodTextFormat
+// rejects with "Root schema must have type: 'object'" before any request is
+// sent — that made every section regeneration fail. Wrapping the union in a
+// single-key envelope object satisfies the constraint (anyOf is allowed
+// below the root); the response is unwrapped via `.section` right after
+// parsing. Exported so tests can pin that the envelope stays convertible.
+export const reviewSectionEnvelopeSchema = z.object({
+  section: reviewSectionSchema,
+});
 
 export class OpenAIProviderError extends Error {
   constructor(message: string) {
@@ -207,7 +219,7 @@ export async function regenerateDirectSection(
       },
     ],
     text: {
-      format: zodTextFormat(reviewSectionSchema, "review_section"),
+      format: zodTextFormat(reviewSectionEnvelopeSchema, "review_section"),
     },
   });
 
@@ -217,7 +229,7 @@ export async function regenerateDirectSection(
     );
   }
 
-  return normalizeReviewSection(response.output_parsed, section);
+  return normalizeReviewSection(response.output_parsed.section, section);
 }
 
 export function createOpenAIProvider(): ConversionProvider {
@@ -257,7 +269,7 @@ export function createOpenAIProvider(): ConversionProvider {
           },
         ],
         text: {
-          format: zodTextFormat(reviewSectionSchema, "review_section"),
+          format: zodTextFormat(reviewSectionEnvelopeSchema, "review_section"),
         },
       });
 
@@ -267,7 +279,7 @@ export function createOpenAIProvider(): ConversionProvider {
         );
       }
 
-      return normalizeReviewSection(response.output_parsed, section);
+      return normalizeReviewSection(response.output_parsed.section, section);
     },
   };
 }
