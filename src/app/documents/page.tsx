@@ -69,6 +69,9 @@ export default function DocumentsPage() {
   // unresolved-markers confirmation in section-detail.tsx): the first click
   // arms "Delete?" for one row, a second click within 3s deletes it.
   const [armedDeleteId, setArmedDeleteId] = useState<string | null>(null);
+  // Shown when a server-document delete fails (network error or error
+  // response) — without it the row just silently stays (issue #18).
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -143,6 +146,7 @@ export default function DocumentsPage() {
     }
 
     setArmedDeleteId(null);
+    setDeleteError(null);
 
     if (document.origin === "client") {
       deleteClientDocument(document.id);
@@ -152,14 +156,22 @@ export default function DocumentsPage() {
       return;
     }
 
-    const response = await fetch(`/api/documents/${document.id}`, {
-      method: "DELETE",
-    });
+    try {
+      const response = await fetch(`/api/documents/${document.id}`, {
+        method: "DELETE",
+      });
 
-    if (response.ok) {
-      setServerDocuments((current) =>
-        current.filter((item) => item.id !== document.id),
-      );
+      if (response.ok) {
+        setServerDocuments((current) =>
+          current.filter((item) => item.id !== document.id),
+        );
+      } else {
+        setDeleteError(t("documents.deleteFailed"));
+      }
+    } catch {
+      // Network failure — keep the row and tell the user instead of dying
+      // as an unhandled rejection.
+      setDeleteError(t("documents.deleteFailed"));
     }
   }
 
@@ -180,6 +192,9 @@ export default function DocumentsPage() {
               <p className="mt-2 text-xs text-[#9aa0ab]">
                 {t("documents.serverUnavailable")}
               </p>
+            ) : null}
+            {deleteError ? (
+              <p className="mt-2 text-xs text-destructive">{deleteError}</p>
             ) : null}
           </div>
 

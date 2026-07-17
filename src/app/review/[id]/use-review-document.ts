@@ -330,25 +330,32 @@ export function useReviewDocument(documentId: string) {
       return;
     }
 
-    const response = await fetch(
-      `/api/documents/${documentId}/export/${kind}`,
-      { method: "POST" },
-    );
+    // Wrapped like every other fetch in this hook (P1-4): a network failure
+    // must show the export-failed message, not die as an unhandled
+    // rejection with no feedback.
+    try {
+      const response = await fetch(
+        `/api/documents/${documentId}/export/${kind}`,
+        { method: "POST" },
+      );
 
-    if (!response.ok) {
+      if (!response.ok) {
+        setMessage(t("common.exportFailed", { kind: kindLabel }));
+        return;
+      }
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download =
+        kind === "markdown" ? `${documentId}.md` : `${documentId}.zip`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+      setMessage(t("common.exportDownloaded", { kind: kindLabel }));
+    } catch {
       setMessage(t("common.exportFailed", { kind: kindLabel }));
-      return;
     }
-
-    const blob = await response.blob();
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download =
-      kind === "markdown" ? `${documentId}.md` : `${documentId}.zip`;
-    anchor.click();
-    URL.revokeObjectURL(url);
-    setMessage(t("common.exportDownloaded", { kind: kindLabel }));
   }
 
   const acceptedCount = sections.filter(
