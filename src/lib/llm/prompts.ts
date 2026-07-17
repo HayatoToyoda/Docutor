@@ -23,13 +23,13 @@ Conversion principles:
 Return only the structured document requested by the schema.
 `.trim();
 
-export function buildDocumentConversionPrompt(document: NormalizedDocument) {
-  // Page/asset file paths are server-local filesystem paths under
-  // runtime/documents/<id>/ — never send them to the model. The model only
-  // needs to know an image exists for a page (hasPageImage) and which
-  // sourcePage a section came from; the server resolves the actual image
-  // for display from sourcePage after conversion (see
-  // normalizeReviewDocument in review-document-normalizer.ts).
+// Serializes the normalized document for embedding into a prompt. Page/asset
+// file paths are server-local filesystem paths under runtime/documents/<id>/
+// — never send them to the model. The model only needs to know an image
+// exists for a page (hasPageImage) and which sourcePage a section came from;
+// the server resolves the actual image for display from sourcePage after
+// conversion (see normalizeReviewDocument in review-document-normalizer.ts).
+function buildNormalizedDocumentJson(document: NormalizedDocument) {
   const pages = document.pages.map((page) => ({
     pageNumber: page.pageNumber,
     text: page.text,
@@ -46,6 +46,20 @@ export function buildDocumentConversionPrompt(document: NormalizedDocument) {
     height: asset.height,
   }));
 
+  return JSON.stringify(
+    {
+      sourceFileName: document.sourceFileName,
+      fileType: document.fileType,
+      pages,
+      assets,
+      warnings: document.warnings,
+    },
+    null,
+    2,
+  );
+}
+
+export function buildDocumentConversionPrompt(document: NormalizedDocument) {
   return `
 Convert this normalized document into a review document.
 
@@ -58,17 +72,7 @@ Required output behavior:
 - If a diagram is present or likely present, create a diagram section with Mermaid for simple workflow diagrams or drawio for complex/grouped diagrams.
 
 Normalized document JSON:
-${JSON.stringify(
-  {
-    sourceFileName: document.sourceFileName,
-    fileType: document.fileType,
-    pages,
-    assets,
-    warnings: document.warnings,
-  },
-  null,
-  2,
-)}
+${buildNormalizedDocumentJson(document)}
 `.trim();
 }
 
@@ -97,17 +101,26 @@ export function buildSectionRegenerationPrompt(
     stripDrawioXml: false,
   });
 
+  // Embeds the normalized-document *data* directly — not
+  // buildDocumentConversionPrompt, whose "convert this whole document"
+  // directive contradicts this prompt's single-section task (issue #17).
   return `
-Regenerate exactly one review section from the normalized document.
+Regenerate exactly one review section from the normalized document below. Do
+not produce any other section.
 ${buildInstructionBlock(instruction)}
 Keep this section id: ${section.id}
 Keep this section type: ${section.type}
+Set the section's sourcePage to the exact page its content comes from — the
+server looks up the original page image for side-by-side review using this
+value.
+Mark ambiguity, missing evidence, or layout uncertainty as "TODO:" or
+"Unclear:".
 
 Current section JSON:
 ${JSON.stringify(targetSection, null, 2)}
 
-Normalized document context:
-${buildDocumentConversionPrompt(document)}
+Normalized document JSON (context for regenerating this one section):
+${buildNormalizedDocumentJson(document)}
 `.trim();
 }
 
