@@ -28,8 +28,43 @@ describe("DiagramIR converters", () => {
 
     expect(mermaid).toContain("flowchart TD");
     expect(mermaid).toContain("start");
-    expect(mermaid).toContain("-->|Yes|");
+    expect(mermaid).toContain('-->|"Yes"|');
     expect(mermaid).toContain("Approval threshold unclear.");
+  });
+
+  // Regression for issue #15: mermaid has no backslash escapes — `\"` in a
+  // decision node or edge label is a parse error. Double quotes must be
+  // emitted as the `#quot;` entity, and edge labels must be quoted so a `|`
+  // inside the label can't terminate the |...| block early.
+  it("escapes double quotes in labels as #quot; (never backslash-quote)", () => {
+    const quoted: DiagramIR = {
+      ...diagram,
+      nodes: [
+        { id: "check", label: 'Amount > "limit"?', kind: "decision" },
+        { id: "note", label: 'Says "hi"', kind: "process" },
+      ],
+      edges: [{ id: "e1", from: "check", to: "note", label: 'Reply "yes"' }],
+      unclearNotes: [],
+    };
+
+    const mermaid = diagramIRToMermaid(quoted);
+
+    expect(mermaid).toContain('check{"Amount > #quot;limit#quot;?"}');
+    expect(mermaid).toContain('note["Says #quot;hi#quot;"]');
+    expect(mermaid).toContain('-->|"Reply #quot;yes#quot;"|');
+    expect(mermaid).not.toContain('\\"');
+  });
+
+  it("keeps edge labels containing a pipe character inside the quoted form", () => {
+    const piped: DiagramIR = {
+      ...diagram,
+      edges: [{ id: "e1", from: "start", to: "check", label: "a | b" }],
+      unclearNotes: [],
+    };
+
+    const mermaid = diagramIRToMermaid(piped);
+
+    expect(mermaid).toContain('start -->|"a | b"| check');
   });
 
   it("renders draw.io XML", () => {
