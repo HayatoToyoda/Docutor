@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import { zodTextFormat } from "openai/helpers/zod";
 import {
   reviewDocumentSchema,
+  reviewSectionSchema,
   type ReviewDocumentOutput,
 } from "../../src/lib/llm/review-document-schema";
+import { reviewSectionEnvelopeSchema } from "../../src/lib/llm/openai-provider";
 import {
   normalizeReviewDocument,
   normalizeReviewSection,
@@ -82,6 +84,44 @@ describe("OpenAI review document schema", () => {
     expect(() =>
       zodTextFormat(reviewDocumentSchema, "review_document"),
     ).not.toThrow();
+  });
+
+  // Regression for issue #14: reviewSectionSchema is a root-level union,
+  // which OpenAI structured outputs reject (the root must be type: "object").
+  // zodTextFormat throws synchronously, so every regeneration call failed
+  // before reaching the API. The provider must therefore send the envelope
+  // object below, never the bare union.
+  it("rejects the bare root-union section schema (why the envelope exists)", () => {
+    expect(() => zodTextFormat(reviewSectionSchema, "review_section")).toThrow(
+      /Root schema must have type: 'object'/,
+    );
+  });
+
+  it("converts the section envelope schema to a structured output format", () => {
+    expect(() =>
+      zodTextFormat(reviewSectionEnvelopeSchema, "review_section"),
+    ).not.toThrow();
+  });
+
+  it("parses an envelope payload whose section feeds normalizeReviewSection", () => {
+    const parsed = reviewSectionEnvelopeSchema.parse({
+      section: modelPayload.sections[0],
+    });
+
+    const sourceSection: ReviewSection = {
+      id: "sec_original",
+      type: "paragraph",
+      title: "Original title",
+      sourcePage: 3,
+      originalText: "Stored original text",
+      generatedMarkdown: "Stored markdown",
+      reviewStatus: "accepted",
+    };
+
+    const result = normalizeReviewSection(parsed.section, sourceSection);
+    expect(result.id).toBe("sec_original");
+    expect(result.reviewStatus).toBe("pending");
+    expect(result.generatedMarkdown).toBe("Generated summary markdown");
   });
 
   it("does not require document metadata (id/createdAt/updatedAt/assets/sourceFileName) on the model payload", () => {
