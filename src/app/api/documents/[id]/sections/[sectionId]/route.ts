@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { applySectionPatch, type SectionPatch } from "@/lib/document-model";
+import { applySectionPatch, sanitizeSectionPatch } from "@/lib/document-model";
 import { getDocumentRepository } from "@/lib/server/document-repository";
 import { jsonError } from "@/lib/server/http";
 
@@ -18,7 +18,24 @@ export async function PATCH(request: Request, context: RouteContext) {
     return jsonError("Review document not found.", 404);
   }
 
-  const patch = (await request.json()) as SectionPatch;
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return jsonError("Request body must be valid JSON.");
+  }
+
+  // applySectionPatch spreads the patch onto the stored section, so the raw
+  // body must never reach it: sanitizeSectionPatch keeps only the
+  // SectionPatch contract's five fields (dropping e.g. an attempt to
+  // overwrite id/type/sourceImage) and rejects wrong-typed values.
+  const patch = sanitizeSectionPatch(body);
+  if (!patch) {
+    return jsonError(
+      "Request body must be a section patch: generatedMarkdown, generatedCode, drawioXml, reviewStatus, and/or notes.",
+    );
+  }
+
   const sectionExists = document.reviewDocument.sections.some(
     (section) => section.id === sectionId,
   );
