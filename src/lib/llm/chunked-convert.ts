@@ -128,6 +128,36 @@ function uniqueSectionId(
   return candidate;
 }
 
+/**
+ * Human-readable `statusDetail` text (F-10) for the window that is *about
+ * to be* converted, given how many windows have already completed (0 before
+ * the first provider call). `convertDocumentInChunks` reports progress
+ * *after* each window resolves, so the window currently being converted is
+ * always `windows[completedWindows]` — using the completed count directly
+ * would name pages that are already done (that off-by-one is exactly what
+ * this helper exists to prevent; see issue #16).
+ *
+ * Returns `undefined` for single-window conversions (no chunk progress
+ * worth showing) and once every window has finished (the ready/failed
+ * status transition clears statusDetail instead).
+ */
+export function chunkProgressStatusDetail(
+  windows: PageWindow[],
+  completedWindows: number,
+  totalPages: number,
+): string | undefined {
+  if (windows.length <= 1) {
+    return undefined;
+  }
+
+  const currentWindow = windows[completedWindows];
+  if (!currentWindow) {
+    return undefined;
+  }
+
+  return `Converting pages ${currentWindow.startPage}-${currentWindow.endPage} of ${totalPages}…`;
+}
+
 /** Merges warnings across windows, dropping exact duplicates while keeping order. */
 function dedupeWarnings(warnings: string[]): string[] {
   return Array.from(new Set(warnings));

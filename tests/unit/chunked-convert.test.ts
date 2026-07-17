@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  chunkProgressStatusDetail,
   convertDocumentInChunks,
   DEFAULT_PAGES_PER_CHUNK,
   resolvePagesPerChunk,
@@ -118,6 +119,35 @@ describe("splitIntoPageWindows", () => {
     expect(windows[0]).toMatchObject({ startPage: 1, endPage: 6 });
     expect(windows[1]).toMatchObject({ startPage: 7, endPage: 12 });
     expect(windows[2]).toMatchObject({ startPage: 13, endPage: 13 });
+  });
+});
+
+// Regression for issue #16: onChunkProgress fires *after* a window
+// completes, so the window currently converting is windows[completed] —
+// the old route code showed windows[completed - 1] (the finished one),
+// lagging one window behind for the whole conversion.
+describe("chunkProgressStatusDetail", () => {
+  const windows = splitIntoPageWindows(buildPages(13), 6);
+
+  it("names the window about to be converted, for each completed count", () => {
+    expect(chunkProgressStatusDetail(windows, 0, 13)).toBe(
+      "Converting pages 1-6 of 13…",
+    );
+    expect(chunkProgressStatusDetail(windows, 1, 13)).toBe(
+      "Converting pages 7-12 of 13…",
+    );
+    expect(chunkProgressStatusDetail(windows, 2, 13)).toBe(
+      "Converting pages 13-13 of 13…",
+    );
+  });
+
+  it("returns undefined once every window has completed", () => {
+    expect(chunkProgressStatusDetail(windows, 3, 13)).toBeUndefined();
+  });
+
+  it("returns undefined for single-window conversions", () => {
+    const singleWindow = splitIntoPageWindows(buildPages(5), 6);
+    expect(chunkProgressStatusDetail(singleWindow, 0, 5)).toBeUndefined();
   });
 });
 

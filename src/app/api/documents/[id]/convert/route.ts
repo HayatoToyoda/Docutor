@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import {
+  chunkProgressStatusDetail,
   convertDocumentInChunks,
   resolvePagesPerChunk,
   splitIntoPageWindows,
@@ -54,14 +55,6 @@ export async function POST(request: Request, context: RouteContext) {
 
   try {
     const workerResult = await runPythonWorker(document);
-    const normalizedJob = await repository.save({
-      ...document,
-      status: "converting",
-      normalizedDocument: workerResult.document,
-      error: undefined,
-    });
-
-    const provider = createConversionProvider(providerName);
 
     // F-10: large documents are converted in page windows (see
     // chunked-convert.ts) rather than a single provider.convert call.
@@ -75,19 +68,41 @@ export async function POST(request: Request, context: RouteContext) {
     );
     const totalPages = workerResult.document.pages.length;
 
+    const normalizedJob = await repository.save({
+      ...document,
+      status: "converting",
+      normalizedDocument: workerResult.document,
+      error: undefined,
+      // Seed the first window's progress text before the first provider
+      // call, so pollers see it while window 1 is actually converting
+      // (undefined for single-window documents).
+      statusDetail: chunkProgressStatusDetail(windows, 0, totalPages),
+    });
+
+    const provider = createConversionProvider(providerName);
+
     const reviewDocument = await convertDocumentInChunks(
       provider,
       workerResult.document,
       {
         pagesPerChunk,
+        // Invoked after each window completes: show the window that is
+        // about to be converted next. After the last window there is no
+        // next window (chunkProgressStatusDetail returns undefined) and
+        // the "ready"/"failed" save below clears statusDetail.
         onChunkProgress: async (completed, total) => {
-          const window = windows[completed - 1];
-          if (total <= 1 || !window) {
+          if (total <= 1) {
             return;
           }
-          await repository.update(id, {
-            statusDetail: `Converting pages ${window.startPage}-${window.endPage} of ${totalPages}…`,
-          });
+          const statusDetail = chunkProgressStatusDetail(
+            windows,
+            completed,
+            totalPages,
+          );
+          if (!statusDetail) {
+            return;
+          }
+          await repository.update(id, { statusDetail });
         },
       },
     );
