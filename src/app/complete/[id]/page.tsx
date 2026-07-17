@@ -41,11 +41,18 @@ export default function CompletePage() {
         return;
       }
 
-      const response = await fetch(`/api/documents/${params.id}`);
-      const payload = (await response.json()) as DocumentPayload;
-      if (response.ok) {
-        setJob(payload.document);
-      } else {
+      // Network failures and non-JSON error responses must surface the same
+      // load-failed message instead of leaving an unhandled rejection and a
+      // silently stuck page (P1-4: every fetch is wrapped).
+      try {
+        const response = await fetch(`/api/documents/${params.id}`);
+        const payload = (await response.json()) as DocumentPayload;
+        if (response.ok) {
+          setJob(payload.document);
+        } else {
+          setMessage(t("common.documentLoadFailed"));
+        }
+      } catch {
         setMessage(t("common.documentLoadFailed"));
       }
     }
@@ -66,24 +73,29 @@ export default function CompletePage() {
       return;
     }
 
-    const response = await fetch(
-      `/api/documents/${params.id}/export/${kind}`,
-      { method: "POST" },
-    );
+    try {
+      const response = await fetch(
+        `/api/documents/${params.id}/export/${kind}`,
+        { method: "POST" },
+      );
 
-    if (!response.ok) {
+      if (!response.ok) {
+        setMessage(t("common.exportFailed", { kind: kindLabel }));
+        return;
+      }
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download =
+        kind === "markdown" ? `${params.id}.md` : `${params.id}.zip`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+      setMessage(t("common.exportDownloaded", { kind: kindLabel }));
+    } catch {
       setMessage(t("common.exportFailed", { kind: kindLabel }));
-      return;
     }
-
-    const blob = await response.blob();
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = kind === "markdown" ? `${params.id}.md` : `${params.id}.zip`;
-    anchor.click();
-    URL.revokeObjectURL(url);
-    setMessage(t("common.exportDownloaded", { kind: kindLabel }));
   }
 
   const reviewDocument = job?.reviewDocument;

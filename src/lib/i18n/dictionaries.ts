@@ -202,6 +202,8 @@ export const en = {
   "documents.rejectedCount": "{count} rejected",
   "documents.delete": "Delete",
   "documents.deleteConfirm": "Delete?",
+  "documents.deleteFailed":
+    "Delete failed. The server may be unreachable — try again.",
 } as const;
 
 export type Dictionary = typeof en;
@@ -404,6 +406,8 @@ export const ja: Record<keyof typeof en, string> = {
   "documents.rejectedCount": "{count} 件却下",
   "documents.delete": "削除",
   "documents.deleteConfirm": "削除しますか?",
+  "documents.deleteFailed":
+    "削除に失敗しました。サーバーに接続できない可能性があります。もう一度お試しください。",
 };
 
 // Minimal named-placeholder interpolation: replaces `{key}` occurrences in
